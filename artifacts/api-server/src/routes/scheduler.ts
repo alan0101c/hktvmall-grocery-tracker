@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { schedulerSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { UpdateSchedulerBody, GetSchedulerResponse, UpdateSchedulerResponse } from "@workspace/api-zod";
+import { UpdateSchedulerBody } from "@workspace/api-zod";
 import { startScheduler, stopScheduler, getNextRunTime } from "../lib/scheduler.js";
 
 const router: IRouter = Router();
@@ -19,20 +19,21 @@ async function getOrCreateSettings() {
   return rows[0];
 }
 
+function buildSchedulerResponse(settings: Awaited<ReturnType<typeof getOrCreateSettings>>, nextRun: Date | null) {
+  return {
+    enabled: settings.enabled,
+    intervalHours: settings.intervalHours,
+    lastRun: settings.lastRun ?? null,
+    nextRun: nextRun ?? null,
+    totalRuns: settings.totalRuns,
+  };
+}
+
 router.get("/", async (_req, res) => {
   try {
     const settings = await getOrCreateSettings();
     const nextRun = getNextRunTime();
-
-    const result = GetSchedulerResponse.parse({
-      enabled: settings.enabled,
-      intervalHours: settings.intervalHours,
-      lastRun: settings.lastRun?.toISOString() ?? null,
-      nextRun: nextRun?.toISOString() ?? null,
-      totalRuns: settings.totalRuns,
-    });
-
-    res.json(result);
+    res.json(buildSchedulerResponse(settings, nextRun));
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
@@ -57,15 +58,7 @@ router.put("/", async (req, res) => {
     const nextRun = getNextRunTime();
     const updated = await getOrCreateSettings();
 
-    const result = UpdateSchedulerResponse.parse({
-      enabled: updated.enabled,
-      intervalHours: updated.intervalHours,
-      lastRun: updated.lastRun?.toISOString() ?? null,
-      nextRun: nextRun?.toISOString() ?? null,
-      totalRuns: updated.totalRuns,
-    });
-
-    res.json(result);
+    res.json(buildSchedulerResponse(updated, nextRun));
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }

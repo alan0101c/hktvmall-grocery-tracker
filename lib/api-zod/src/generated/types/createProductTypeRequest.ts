@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.3.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface CreateProductTypeRequest {
+  name: string;
+  unitLabel: string;
 }

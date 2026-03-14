@@ -8,6 +8,7 @@ export interface ScrapedProduct {
   category?: string;
   currentPrice: number;
   originalPrice?: number;
+  promotionText?: string;
   currency: string;
   imageUrl?: string;
   productUrl: string;
@@ -159,6 +160,30 @@ export async function scrapeProductByUrl(
           '[class*="out-of-stock"], [class*="outOfStock"], [class*="sold-out"], [class*="soldOut"], [class*="unavailable"], .addToCartDisabled'
         );
 
+        // Detect promotion text (multi-buy deals like "兩件半價 | 平均1件$21")
+        const promoSelectors = [
+          ".multi-buy-promotion",
+          ".promotionLabel",
+          ".promotion-label",
+          "[class*='multi-buy']",
+          "[class*='multibuy']",
+          "[class*='promotion-tag']",
+          "[class*='promotionTag']",
+          "[class*='promo-label']",
+          "[class*='promoLabel']",
+        ];
+        let promotionText = "";
+        for (const sel of promoSelectors) {
+          const el = document.querySelector(sel);
+          if (el) {
+            const txt = el.textContent?.trim() || "";
+            if (txt.length > 0 && txt.length < 200) {
+              promotionText = txt;
+              break;
+            }
+          }
+        }
+
         return {
           name,
           brand,
@@ -167,6 +192,7 @@ export async function scrapeProductByUrl(
           imageUrl,
           isOutOfStock,
           isSpecialPrice,
+          promotionText,
         };
       });
 
@@ -184,6 +210,7 @@ export async function scrapeProductByUrl(
           originalPrice && originalPrice !== currentPrice
             ? originalPrice
             : undefined,
+        promotionText: data.promotionText || undefined,
         currency: "HKD",
         imageUrl: data.imageUrl || undefined,
         productUrl: fullUrl,
@@ -264,7 +291,6 @@ export async function searchHKTVMall(
         }
 
         const imageUrl = hit.images?.[0]?.url || undefined;
-
         const productUrl = `${BASE_URL}/p/${hit.code}`;
 
         return {

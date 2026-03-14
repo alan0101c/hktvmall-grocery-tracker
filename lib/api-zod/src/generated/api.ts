@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * HKTVMall Grocery Price Tracker API
- * OpenAPI spec version: 0.2.0
+ * OpenAPI spec version: 0.3.0
  */
 import * as zod from "zod";
 
@@ -33,11 +33,31 @@ export const GetProductsResponseItem = zod.object({
   category: zod.string().optional(),
   currentPrice: zod.number(),
   originalPrice: zod.number().optional(),
+  promotionText: zod
+    .string()
+    .optional()
+    .describe("Multi-buy or special promotion label scraped from HKTVMall"),
   currency: zod.string(),
   imageUrl: zod.string().optional(),
   productUrl: zod.string().optional(),
   sku: zod.string().optional(),
   inStock: zod.boolean().optional(),
+  productTypeId: zod
+    .number()
+    .nullish()
+    .describe("Reference to a user-defined product type"),
+  packageQuantity: zod
+    .number()
+    .nullish()
+    .describe("Amount in the package (e.g. 500 for 500ml)"),
+  packageUnit: zod
+    .string()
+    .nullish()
+    .describe("Unit for packageQuantity (e.g. ml, g, tablet, pack)"),
+  pricePerUnit: zod
+    .number()
+    .nullish()
+    .describe("Calculated as currentPrice \/ packageQuantity"),
   lastUpdated: zod.date(),
   alertPrice: zod.number().nullish(),
   isBelowAlert: zod.boolean(),
@@ -60,6 +80,18 @@ export const TrackProductBody = zod.object({
     .number()
     .optional()
     .describe("Optional alert price to set immediately"),
+  productTypeId: zod
+    .number()
+    .nullish()
+    .describe("Optional product type to assign"),
+  packageQuantity: zod
+    .number()
+    .nullish()
+    .describe("Package size (e.g. 500 for 500ml)"),
+  packageUnit: zod
+    .string()
+    .nullish()
+    .describe("Unit label (e.g. ml, g, tablet, pack)"),
 });
 
 /**
@@ -109,11 +141,31 @@ export const GetProductResponse = zod
     category: zod.string().optional(),
     currentPrice: zod.number(),
     originalPrice: zod.number().optional(),
+    promotionText: zod
+      .string()
+      .optional()
+      .describe("Multi-buy or special promotion label scraped from HKTVMall"),
     currency: zod.string(),
     imageUrl: zod.string().optional(),
     productUrl: zod.string().optional(),
     sku: zod.string().optional(),
     inStock: zod.boolean().optional(),
+    productTypeId: zod
+      .number()
+      .nullish()
+      .describe("Reference to a user-defined product type"),
+    packageQuantity: zod
+      .number()
+      .nullish()
+      .describe("Amount in the package (e.g. 500 for 500ml)"),
+    packageUnit: zod
+      .string()
+      .nullish()
+      .describe("Unit for packageQuantity (e.g. ml, g, tablet, pack)"),
+    pricePerUnit: zod
+      .number()
+      .nullish()
+      .describe("Calculated as currentPrice \/ packageQuantity"),
     lastUpdated: zod.date(),
     alertPrice: zod.number().nullish(),
     isBelowAlert: zod.boolean(),
@@ -130,6 +182,8 @@ export const GetProductResponse = zod
         zod.object({
           id: zod.number(),
           price: zod.number(),
+          originalPrice: zod.number().optional(),
+          promotionText: zod.string().optional(),
           recordedAt: zod.date(),
         }),
       ),
@@ -163,11 +217,31 @@ export const RefreshProductResponse = zod.object({
   category: zod.string().optional(),
   currentPrice: zod.number(),
   originalPrice: zod.number().optional(),
+  promotionText: zod
+    .string()
+    .optional()
+    .describe("Multi-buy or special promotion label scraped from HKTVMall"),
   currency: zod.string(),
   imageUrl: zod.string().optional(),
   productUrl: zod.string().optional(),
   sku: zod.string().optional(),
   inStock: zod.boolean().optional(),
+  productTypeId: zod
+    .number()
+    .nullish()
+    .describe("Reference to a user-defined product type"),
+  packageQuantity: zod
+    .number()
+    .nullish()
+    .describe("Amount in the package (e.g. 500 for 500ml)"),
+  packageUnit: zod
+    .string()
+    .nullish()
+    .describe("Unit for packageQuantity (e.g. ml, g, tablet, pack)"),
+  pricePerUnit: zod
+    .number()
+    .nullish()
+    .describe("Calculated as currentPrice \/ packageQuantity"),
   lastUpdated: zod.date(),
   alertPrice: zod.number().nullish(),
   isBelowAlert: zod.boolean(),
@@ -177,6 +251,98 @@ export const RefreshProductResponse = zod.object({
     .describe(
       "Price change since last check (positive = increase, negative = drop)",
     ),
+});
+
+/**
+ * @summary Update unit/type metadata for a tracked product
+ */
+export const UpdateProductUnitParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateProductUnitBody = zod.object({
+  productTypeId: zod.number().nullish(),
+  packageQuantity: zod.number().nullish(),
+  packageUnit: zod.string().nullish(),
+});
+
+export const UpdateProductUnitResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  nameZh: zod.string().optional(),
+  brand: zod.string().optional(),
+  category: zod.string().optional(),
+  currentPrice: zod.number(),
+  originalPrice: zod.number().optional(),
+  promotionText: zod
+    .string()
+    .optional()
+    .describe("Multi-buy or special promotion label scraped from HKTVMall"),
+  currency: zod.string(),
+  imageUrl: zod.string().optional(),
+  productUrl: zod.string().optional(),
+  sku: zod.string().optional(),
+  inStock: zod.boolean().optional(),
+  productTypeId: zod
+    .number()
+    .nullish()
+    .describe("Reference to a user-defined product type"),
+  packageQuantity: zod
+    .number()
+    .nullish()
+    .describe("Amount in the package (e.g. 500 for 500ml)"),
+  packageUnit: zod
+    .string()
+    .nullish()
+    .describe("Unit for packageQuantity (e.g. ml, g, tablet, pack)"),
+  pricePerUnit: zod
+    .number()
+    .nullish()
+    .describe("Calculated as currentPrice \/ packageQuantity"),
+  lastUpdated: zod.date(),
+  alertPrice: zod.number().nullish(),
+  isBelowAlert: zod.boolean(),
+  priceChange: zod
+    .number()
+    .nullish()
+    .describe(
+      "Price change since last check (positive = increase, negative = drop)",
+    ),
+});
+
+/**
+ * @summary List all product types
+ */
+export const GetProductTypesResponseItem = zod.object({
+  id: zod.number(),
+  name: zod
+    .string()
+    .describe('Human label for this category, e.g. \"Adult Mouthwash\"'),
+  unitLabel: zod
+    .string()
+    .describe('Unit to measure by, e.g. \"ml\", \"g\", \"tablet\", \"pack\"'),
+  createdAt: zod.date(),
+});
+export const GetProductTypesResponse = zod.array(GetProductTypesResponseItem);
+
+/**
+ * @summary Create a new product type
+ */
+export const CreateProductTypeBody = zod.object({
+  name: zod.string(),
+  unitLabel: zod.string(),
+});
+
+/**
+ * @summary Delete a product type
+ */
+export const DeleteProductTypeParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteProductTypeResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string(),
 });
 
 /**

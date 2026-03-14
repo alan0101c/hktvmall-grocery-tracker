@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Api
-  version: 0.2.0
+  version: 0.3.0
   description: HKTVMall Grocery Price Tracker API
 servers:
   - url: /api
@@ -11,6 +11,8 @@ tags:
     description: Health operations
   - name: products
     description: Tracked product management
+  - name: product-types
+    description: User-defined product type configuration
   - name: alerts
     description: Price alert management
   - name: scheduler
@@ -176,6 +178,82 @@ paths:
               schema:
                 $ref: "#/components/schemas/Product"
 
+  /products/{id}/unit:
+    put:
+      operationId: updateProductUnit
+      tags: [products]
+      summary: Update unit/type metadata for a tracked product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProductUnitRequest"
+      responses:
+        "200":
+          description: Updated product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /product-types:
+    get:
+      operationId: getProductTypes
+      tags: [product-types]
+      summary: List all product types
+      responses:
+        "200":
+          description: List of product types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProductType"
+    post:
+      operationId: createProductType
+      tags: [product-types]
+      summary: Create a new product type
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductTypeRequest"
+      responses:
+        "201":
+          description: Product type created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductType"
+
+  /product-types/{id}:
+    delete:
+      operationId: deleteProductType
+      tags: [product-types]
+      summary: Delete a product type
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
   /alerts:
     get:
       operationId: getAlerts
@@ -281,6 +359,31 @@ components:
           type: string
       required: [status]
 
+    ProductType:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          description: Human label for this category, e.g. "Adult Mouthwash"
+        unitLabel:
+          type: string
+          description: Unit to measure by, e.g. "ml", "g", "tablet", "pack"
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, unitLabel, createdAt]
+
+    CreateProductTypeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        unitLabel:
+          type: string
+      required: [name, unitLabel]
+
     Product:
       type: object
       properties:
@@ -298,6 +401,9 @@ components:
           type: number
         originalPrice:
           type: number
+        promotionText:
+          type: string
+          description: Multi-buy or special promotion label scraped from HKTVMall
         currency:
           type: string
         imageUrl:
@@ -308,6 +414,22 @@ components:
           type: string
         inStock:
           type: boolean
+        productTypeId:
+          type: integer
+          nullable: true
+          description: Reference to a user-defined product type
+        packageQuantity:
+          type: number
+          nullable: true
+          description: Amount in the package (e.g. 500 for 500ml)
+        packageUnit:
+          type: string
+          nullable: true
+          description: Unit for packageQuantity (e.g. ml, g, tablet, pack)
+        pricePerUnit:
+          type: number
+          nullable: true
+          description: Calculated as currentPrice / packageQuantity
         lastUpdated:
           type: string
           format: date-time
@@ -346,10 +468,27 @@ components:
           type: integer
         price:
           type: number
+        originalPrice:
+          type: number
+        promotionText:
+          type: string
         recordedAt:
           type: string
           format: date-time
       required: [id, price, recordedAt]
+
+    UpdateProductUnitRequest:
+      type: object
+      properties:
+        productTypeId:
+          type: integer
+          nullable: true
+        packageQuantity:
+          type: number
+          nullable: true
+        packageUnit:
+          type: string
+          nullable: true
 
     Alert:
       type: object
@@ -431,6 +570,18 @@ components:
         targetPrice:
           type: number
           description: Optional alert price to set immediately
+        productTypeId:
+          type: integer
+          nullable: true
+          description: Optional product type to assign
+        packageQuantity:
+          type: number
+          nullable: true
+          description: Package size (e.g. 500 for 500ml)
+        packageUnit:
+          type: string
+          nullable: true
+          description: Unit label (e.g. ml, g, tablet, pack)
       required: [productUrl]
 
     RefreshResult:

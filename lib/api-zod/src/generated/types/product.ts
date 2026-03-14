@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * HKTVMall Grocery Price Tracker API
- * OpenAPI spec version: 0.2.0
+ * OpenAPI spec version: 0.3.0
  */
 
 export interface Product {
@@ -14,11 +14,21 @@ export interface Product {
   category?: string;
   currentPrice: number;
   originalPrice?: number;
+  /** Multi-buy or special promotion label scraped from HKTVMall */
+  promotionText?: string;
   currency: string;
   imageUrl?: string;
   productUrl?: string;
   sku?: string;
   inStock?: boolean;
+  /** Reference to a user-defined product type */
+  productTypeId?: number | null;
+  /** Amount in the package (e.g. 500 for 500ml) */
+  packageQuantity?: number | null;
+  /** Unit for packageQuantity (e.g. ml, g, tablet, pack) */
+  packageUnit?: string | null;
+  /** Calculated as currentPrice / packageQuantity */
+  pricePerUnit?: number | null;
   lastUpdated: Date;
   alertPrice?: number | null;
   isBelowAlert: boolean;

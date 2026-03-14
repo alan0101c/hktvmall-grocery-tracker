@@ -2,12 +2,7 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { alertsTable, productsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import {
-  CreateAlertBody,
-  GetAlertsResponse,
-  DeleteAlertResponse,
-  GetTriggeredAlertsResponse,
-} from "@workspace/api-zod";
+import { CreateAlertBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
@@ -38,8 +33,7 @@ router.get("/triggered", async (_req, res) => {
       })
       .filter(Boolean);
 
-    const result = GetTriggeredAlertsResponse.parse(triggered);
-    res.json(result);
+    res.json(triggered);
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
@@ -51,22 +45,20 @@ router.get("/", async (_req, res) => {
     const products = await db.select().from(productsTable);
     const productMap = new Map(products.map((p) => [p.id, p]));
 
-    const result = GetAlertsResponse.parse(
-      alerts.map((a) => {
-        const product = productMap.get(a.productId);
-        const currentPrice = product ? parseFloat(product.currentPrice) : 0;
-        const targetPrice = parseFloat(a.targetPrice);
-        return {
-          id: a.id,
-          productId: a.productId,
-          productName: product?.name ?? "Unknown",
-          targetPrice,
-          currentPrice,
-          isTriggered: currentPrice <= targetPrice,
-          createdAt: a.createdAt.toISOString(),
-        };
-      })
-    );
+    const result = alerts.map((a) => {
+      const product = productMap.get(a.productId);
+      const currentPrice = product ? parseFloat(product.currentPrice) : 0;
+      const targetPrice = parseFloat(a.targetPrice);
+      return {
+        id: a.id,
+        productId: a.productId,
+        productName: product?.name ?? "Unknown",
+        targetPrice,
+        currentPrice,
+        isTriggered: currentPrice <= targetPrice,
+        createdAt: a.createdAt,
+      };
+    });
 
     res.json(result);
   } catch (err) {
@@ -78,16 +70,7 @@ router.post("/", async (req, res) => {
   try {
     const body = CreateAlertBody.parse(req.body);
 
-    const existing = await db
-      .select()
-      .from(alertsTable)
-      .where(eq(alertsTable.productId, body.productId));
-
-    if (existing.length > 0) {
-      await db
-        .delete(alertsTable)
-        .where(eq(alertsTable.productId, body.productId));
-    }
+    await db.delete(alertsTable).where(eq(alertsTable.productId, body.productId));
 
     const [alert] = await db
       .insert(alertsTable)
@@ -112,7 +95,7 @@ router.post("/", async (req, res) => {
       targetPrice,
       currentPrice,
       isTriggered: currentPrice <= targetPrice,
-      createdAt: alert.createdAt.toISOString(),
+      createdAt: alert.createdAt,
     });
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -123,8 +106,7 @@ router.delete("/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     await db.delete(alertsTable).where(eq(alertsTable.id, id));
-    const result = DeleteAlertResponse.parse({ success: true, message: "Alert deleted" });
-    res.json(result);
+    res.json({ success: true, message: "Alert deleted" });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }

@@ -34,6 +34,7 @@ export async function refreshProduct(productId: number): Promise<{ success: bool
       .set({
         currentPrice: newPrice.toString(),
         originalPrice: scraped.originalPrice?.toString(),
+        promotionText: scraped.promotionText ?? null,
         imageUrl: scraped.imageUrl ?? product.imageUrl,
         inStock: scraped.inStock,
         nameZh: scraped.nameZh ?? product.nameZh,
@@ -46,6 +47,8 @@ export async function refreshProduct(productId: number): Promise<{ success: bool
       await db.insert(priceHistoryTable).values({
         productId,
         price: newPrice.toString(),
+        originalPrice: scraped.originalPrice?.toString() ?? null,
+        promotionText: scraped.promotionText ?? null,
       });
     }
 

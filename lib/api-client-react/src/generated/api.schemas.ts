@@ -3,10 +3,24 @@
  * Do not edit manually.
  * Api
  * HKTVMall Grocery Price Tracker API
- * OpenAPI spec version: 0.2.0
+ * OpenAPI spec version: 0.3.0
  */
 export interface HealthStatus {
   status: string;
+}
+
+export interface ProductType {
+  id: number;
+  /** Human label for this category, e.g. "Adult Mouthwash" */
+  name: string;
+  /** Unit to measure by, e.g. "ml", "g", "tablet", "pack" */
+  unitLabel: string;
+  createdAt: string;
+}
+
+export interface CreateProductTypeRequest {
+  name: string;
+  unitLabel: string;
 }
 
 export interface Product {
@@ -17,11 +31,21 @@ export interface Product {
   category?: string;
   currentPrice: number;
   originalPrice?: number;
+  /** Multi-buy or special promotion label scraped from HKTVMall */
+  promotionText?: string;
   currency: string;
   imageUrl?: string;
   productUrl?: string;
   sku?: string;
   inStock?: boolean;
+  /** Reference to a user-defined product type */
+  productTypeId?: number | null;
+  /** Amount in the package (e.g. 500 for 500ml) */
+  packageQuantity?: number | null;
+  /** Unit for packageQuantity (e.g. ml, g, tablet, pack) */
+  packageUnit?: string | null;
+  /** Calculated as currentPrice / packageQuantity */
+  pricePerUnit?: number | null;
   lastUpdated: string;
   alertPrice?: number | null;
   isBelowAlert: boolean;
@@ -32,12 +56,20 @@ export interface Product {
 export interface PriceRecord {
   id: number;
   price: number;
+  originalPrice?: number;
+  promotionText?: string;
   recordedAt: string;
 }
 
 export type ProductDetail = Product & {
   priceHistory: PriceRecord[];
 };
+
+export interface UpdateProductUnitRequest {
+  productTypeId?: number | null;
+  packageQuantity?: number | null;
+  packageUnit?: string | null;
+}
 
 export interface Alert {
   id: number;
@@ -81,6 +113,12 @@ export interface TrackProductRequest {
   name?: string;
   /** Optional alert price to set immediately */
   targetPrice?: number;
+  /** Optional product type to assign */
+  productTypeId?: number | null;
+  /** Package size (e.g. 500 for 500ml) */
+  packageQuantity?: number | null;
+  /** Unit label (e.g. ml, g, tablet, pack) */
+  packageUnit?: string | null;
 }
 
 export interface RefreshResult {
