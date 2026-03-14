@@ -26,6 +26,7 @@ export const productsTable = pgTable("products", {
   productTypeId: integer("product_type_id").references(() => productTypesTable.id, { onDelete: "set null" }),
   packageQuantity: numeric("package_quantity", { precision: 10, scale: 3 }),
   packageUnit: text("package_unit"),
+  itemCount: integer("item_count"),
   lastUpdated: timestamp("last_updated").notNull().defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

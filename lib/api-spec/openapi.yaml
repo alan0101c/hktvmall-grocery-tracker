@@ -421,15 +421,19 @@ components:
         packageQuantity:
           type: number
           nullable: true
-          description: Amount in the package (e.g. 500 for 500ml)
+          description: Size of each natural unit (e.g. 950 for 950ml per bottle)
         packageUnit:
           type: string
           nullable: true
           description: Unit for packageQuantity (e.g. ml, g, tablet, pack)
+        itemCount:
+          type: integer
+          nullable: true
+          description: Number of natural units in the package (e.g. 3 for a 3-pack). When set, pricePerUnit = price / itemCount (price per 950ml bottle). When null, pricePerUnit = price / packageQuantity (price per ml).
         pricePerUnit:
           type: number
           nullable: true
-          description: Calculated as currentPrice / packageQuantity
+          description: "Per-item mode (itemCount set): price per item. Total mode (itemCount null): price per packageUnit."
         lastUpdated:
           type: string
           format: date-time
@@ -486,9 +490,14 @@ components:
         packageQuantity:
           type: number
           nullable: true
+          description: Size of each natural unit (e.g. 950 for 950ml per bottle)
         packageUnit:
           type: string
           nullable: true
+        itemCount:
+          type: integer
+          nullable: true
+          description: Number of items in the package. When set, pricePerUnit = price / itemCount.
 
     Alert:
       type: object

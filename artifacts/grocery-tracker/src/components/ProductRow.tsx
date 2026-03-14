@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trash2, Bell, RefreshCw, TrendingDown, TrendingUp, ExternalLink, Tag, Scale, X, Check, Loader2 } from "lucide-react";
+import { Trash2, Bell, RefreshCw, TrendingDown, TrendingUp, ExternalLink, Tag, Scale, X, Check, Loader2, Hash, Beaker } from "lucide-react";
 import {
   type Product,
   useDeleteProduct,
@@ -18,6 +18,8 @@ interface ProductRowProps {
   onSetAlert: (e: React.MouseEvent) => void;
 }
 
+type InputMode = "total" | "perItem";
+
 export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
   const queryClient = useQueryClient();
   const deleteMutation = useDeleteProduct();
@@ -27,8 +29,17 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
 
   const [editingUnit, setEditingUnit] = useState(false);
   const [selectedTypeId, setSelectedTypeId] = useState<number | null>(product.productTypeId ?? null);
-  const [packageQuantity, setPackageQuantity] = useState(product.packageQuantity ? String(product.packageQuantity) : "");
   const [packageUnit, setPackageUnit] = useState(product.packageUnit ?? "");
+
+  // Two modes: "total" = user enters total volume (e.g. 2850ml); "perItem" = user enters unit size × item count (950ml × 3)
+  const [inputMode, setInputMode] = useState<InputMode>(
+    product.itemCount != null ? "perItem" : "total"
+  );
+  const [unitSize, setUnitSize] = useState(product.packageQuantity ? String(product.packageQuantity) : "");
+  const [itemCount, setItemCount] = useState(product.itemCount ? String(product.itemCount) : "");
+  const [totalQty, setTotalQty] = useState(
+    product.itemCount == null && product.packageQuantity ? String(product.packageQuantity) : ""
+  );
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -48,10 +59,13 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
 
   const handleEditUnit = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Reset to current product values each time panel opens
     setSelectedTypeId(product.productTypeId ?? null);
-    setPackageQuantity(product.packageQuantity ? String(product.packageQuantity) : "");
     setPackageUnit(product.packageUnit ?? "");
+    const isPerItem = product.itemCount != null;
+    setInputMode(isPerItem ? "perItem" : "total");
+    setUnitSize(product.packageQuantity ? String(product.packageQuantity) : "");
+    setItemCount(product.itemCount ? String(product.itemCount) : "");
+    setTotalQty(product.itemCount == null && product.packageQuantity ? String(product.packageQuantity) : "");
     setEditingUnit(true);
   };
 
@@ -62,14 +76,29 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
 
   const handleSaveUnit = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const qty = parseFloat(packageQuantity);
+
+    let packageQuantity: number | null = null;
+    let finalItemCount: number | null = null;
+
+    if (inputMode === "perItem") {
+      const sz = parseFloat(unitSize);
+      const cnt = parseInt(itemCount);
+      packageQuantity = !isNaN(sz) && sz > 0 ? sz : null;
+      finalItemCount = !isNaN(cnt) && cnt > 0 ? cnt : null;
+    } else {
+      const tot = parseFloat(totalQty);
+      packageQuantity = !isNaN(tot) && tot > 0 ? tot : null;
+      finalItemCount = null;
+    }
+
     updateUnitMutation.mutate(
       {
         id: product.id,
         data: {
           productTypeId: selectedTypeId,
-          packageQuantity: !isNaN(qty) && qty > 0 ? qty : null,
+          packageQuantity,
           packageUnit: packageUnit.trim() || null,
+          itemCount: finalItemCount,
         },
       },
       {
@@ -88,10 +117,34 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
 
   const hasUnitPrice = product.pricePerUnit != null && product.pricePerUnit > 0 && product.packageUnit;
 
-  const previewQty = parseFloat(packageQuantity);
-  const previewUnitPrice = !isNaN(previewQty) && previewQty > 0
-    ? product.currentPrice / previewQty
+  // Badge label differs by mode: per-item → "HK$X/950ml"; total → "HK$X/ml"
+  const unitPriceBadge = hasUnitPrice
+    ? product.itemCount != null && product.itemCount > 0
+      ? `${formatHKD(product.pricePerUnit!)}/${product.packageQuantity}${product.packageUnit}`
+      : `${formatHKD(product.pricePerUnit!)}/${product.packageUnit}`
     : null;
+
+  // Live preview in the editor
+  const previewPricePerUnit = (() => {
+    if (inputMode === "perItem") {
+      const cnt = parseInt(itemCount);
+      if (!isNaN(cnt) && cnt > 0) return product.currentPrice / cnt;
+    } else {
+      const tot = parseFloat(totalQty);
+      if (!isNaN(tot) && tot > 0) return product.currentPrice / tot;
+    }
+    return null;
+  })();
+
+  const previewLabel = (() => {
+    if (previewPricePerUnit === null) return null;
+    if (inputMode === "perItem") {
+      const sz = parseFloat(unitSize);
+      if (!isNaN(sz) && sz > 0 && packageUnit) return `${formatHKD(previewPricePerUnit)} per ${sz}${packageUnit}`;
+      return `${formatHKD(previewPricePerUnit)} per item`;
+    }
+    return `${formatHKD(previewPricePerUnit)}/${packageUnit || "unit"}`;
+  })();
 
   return (
     <div
@@ -150,7 +203,7 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
           </div>
 
           {/* Badges */}
-          {(product.promotionText || hasUnitPrice) && (
+          {(product.promotionText || unitPriceBadge) && (
             <div className="flex flex-wrap items-center gap-2 mt-2">
               {product.promotionText && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-semibold rounded-lg leading-tight max-w-[240px] truncate">
@@ -158,14 +211,14 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
                   <span className="truncate">{product.promotionText}</span>
                 </span>
               )}
-              {hasUnitPrice && (
+              {unitPriceBadge && (
                 <span
                   onClick={e => { e.stopPropagation(); handleEditUnit(e); }}
                   className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-semibold rounded-lg leading-tight cursor-pointer hover:bg-emerald-100 transition-colors"
                   title="Edit unit pricing"
                 >
                   <Scale className="w-3 h-3 shrink-0" />
-                  {formatHKD(product.pricePerUnit!!)}/{product.packageUnit}
+                  {unitPriceBadge}
                 </span>
               )}
             </div>
@@ -234,9 +287,9 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
       {editingUnit && (
         <div
           onClick={e => e.stopPropagation()}
-          className="border-t border-border/60 px-4 sm:px-5 py-4 bg-muted/30 rounded-b-2xl space-y-3"
+          className="border-t border-border/60 px-4 sm:px-5 py-4 bg-muted/30 rounded-b-2xl space-y-4"
         >
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
               <Scale className="w-3.5 h-3.5 text-emerald-600" />
               Unit Pricing &amp; Category
@@ -251,7 +304,7 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
             <p className="text-[11px] text-muted-foreground mb-1.5 font-medium">Category</p>
             <div className="flex flex-wrap gap-1.5">
               <button
-                onClick={() => { setSelectedTypeId(null); }}
+                onClick={() => setSelectedTypeId(null)}
                 className={cn(
                   "px-2.5 py-1 rounded-lg text-xs font-medium border transition-all",
                   selectedTypeId === null
@@ -284,32 +337,102 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
             </div>
           </div>
 
-          {/* Quantity + unit */}
+          {/* Mode toggle */}
           <div>
             <p className="text-[11px] text-muted-foreground mb-1.5 font-medium">Package size</p>
-            <div className="flex gap-2 items-center">
-              <input
-                type="number"
-                min="0"
-                step="any"
-                placeholder="e.g. 500"
-                value={packageQuantity}
-                onChange={e => setPackageQuantity(e.target.value)}
-                className="w-28 px-3 py-1.5 bg-background border border-border rounded-lg focus:outline-none focus:border-primary text-sm transition-colors"
-              />
-              <input
-                type="text"
-                placeholder="ml / g / tablet"
-                value={packageUnit}
-                onChange={e => setPackageUnit(e.target.value)}
-                className="w-28 px-3 py-1.5 bg-background border border-border rounded-lg focus:outline-none focus:border-primary text-sm transition-colors"
-              />
-              {previewUnitPrice !== null && (
-                <span className="text-xs text-emerald-600 font-semibold">
-                  = {formatHKD(previewUnitPrice)}/{packageUnit || "unit"}
-                </span>
-              )}
+            <div className="flex gap-1 p-0.5 bg-muted rounded-lg w-fit mb-3">
+              <button
+                onClick={() => setInputMode("total")}
+                className={cn(
+                  "flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all",
+                  inputMode === "total"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Beaker className="w-3 h-3" />
+                Total volume
+              </button>
+              <button
+                onClick={() => setInputMode("perItem")}
+                className={cn(
+                  "flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all",
+                  inputMode === "perItem"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Hash className="w-3 h-3" />
+                Per item
+              </button>
             </div>
+
+            {inputMode === "total" ? (
+              <div className="space-y-1.5">
+                <p className="text-[11px] text-muted-foreground">Enter the total amount in the package (e.g. 2850ml for a 3-pack of 950ml bottles).</p>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="e.g. 2850"
+                    value={totalQty}
+                    onChange={e => setTotalQty(e.target.value)}
+                    className="w-28 px-3 py-1.5 bg-background border border-border rounded-lg focus:outline-none focus:border-primary text-sm transition-colors"
+                  />
+                  <input
+                    type="text"
+                    placeholder="ml / g / tablet"
+                    value={packageUnit}
+                    onChange={e => setPackageUnit(e.target.value)}
+                    className="w-28 px-3 py-1.5 bg-background border border-border rounded-lg focus:outline-none focus:border-primary text-sm transition-colors"
+                  />
+                  {previewLabel && (
+                    <span className="text-xs text-emerald-600 font-semibold">= {previewLabel}</span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <p className="text-[11px] text-muted-foreground">Enter the size of each individual item and how many you're getting (e.g. 950ml × 3 bottles).</p>
+                <div className="flex flex-wrap gap-2 items-center">
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder="950"
+                      value={unitSize}
+                      onChange={e => setUnitSize(e.target.value)}
+                      className="w-24 px-3 py-1.5 bg-background border border-border rounded-lg focus:outline-none focus:border-primary text-sm transition-colors"
+                    />
+                    <input
+                      type="text"
+                      placeholder="ml / g"
+                      value={packageUnit}
+                      onChange={e => setPackageUnit(e.target.value)}
+                      className="w-20 px-3 py-1.5 bg-background border border-border rounded-lg focus:outline-none focus:border-primary text-sm transition-colors"
+                    />
+                  </div>
+                  <span className="text-sm text-muted-foreground font-medium">×</span>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      placeholder="3"
+                      value={itemCount}
+                      onChange={e => setItemCount(e.target.value)}
+                      className="w-20 px-3 py-1.5 bg-background border border-border rounded-lg focus:outline-none focus:border-primary text-sm transition-colors"
+                    />
+                    <span className="text-xs text-muted-foreground">items</span>
+                  </div>
+                  {previewLabel && (
+                    <span className="text-xs text-emerald-600 font-semibold">= {previewLabel}</span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Save / Cancel */}

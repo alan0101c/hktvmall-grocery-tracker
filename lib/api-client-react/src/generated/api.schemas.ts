@@ -40,11 +40,13 @@ export interface Product {
   inStock?: boolean;
   /** Reference to a user-defined product type */
   productTypeId?: number | null;
-  /** Amount in the package (e.g. 500 for 500ml) */
+  /** Size of each natural unit (e.g. 950 for 950ml per bottle) */
   packageQuantity?: number | null;
   /** Unit for packageQuantity (e.g. ml, g, tablet, pack) */
   packageUnit?: string | null;
-  /** Calculated as currentPrice / packageQuantity */
+  /** Number of natural units in the package (e.g. 3 for a 3-pack). When set, pricePerUnit = price / itemCount (price per 950ml bottle). When null, pricePerUnit = price / packageQuantity (price per ml). */
+  itemCount?: number | null;
+  /** Per-item mode (itemCount set): price per item. Total mode (itemCount null): price per packageUnit. */
   pricePerUnit?: number | null;
   lastUpdated: string;
   alertPrice?: number | null;
@@ -67,8 +69,11 @@ export type ProductDetail = Product & {
 
 export interface UpdateProductUnitRequest {
   productTypeId?: number | null;
+  /** Size of each natural unit (e.g. 950 for 950ml per bottle) */
   packageQuantity?: number | null;
   packageUnit?: string | null;
+  /** Number of items in the package. When set, pricePerUnit = price / itemCount. */
+  itemCount?: number | null;
 }
 
 export interface Alert {

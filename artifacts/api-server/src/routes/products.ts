@@ -20,10 +20,16 @@ function buildProductResponse(
   const priceChange = prevPrice !== undefined ? currentPrice - prevPrice : null;
 
   const packageQuantity = p.packageQuantity ? parseFloat(p.packageQuantity) : null;
-  const pricePerUnit =
-    packageQuantity && packageQuantity > 0
-      ? Math.round((currentPrice / packageQuantity) * 10000) / 10000
-      : null;
+  const itemCount = p.itemCount ?? null;
+
+  let pricePerUnit: number | null = null;
+  if (itemCount !== null && itemCount > 0 && packageQuantity && packageQuantity > 0) {
+    // Per-item mode: price per natural item (of size packageQuantity packageUnit each)
+    pricePerUnit = Math.round((currentPrice / itemCount) * 10000) / 10000;
+  } else if (packageQuantity && packageQuantity > 0) {
+    // Total mode: price per base unit (packageUnit)
+    pricePerUnit = Math.round((currentPrice / packageQuantity) * 10000) / 10000;
+  }
 
   return {
     id: p.id,
@@ -42,6 +48,7 @@ function buildProductResponse(
     productTypeId: p.productTypeId ?? null,
     packageQuantity,
     packageUnit: p.packageUnit ?? null,
+    itemCount,
     pricePerUnit,
     lastUpdated: p.lastUpdated,
     alertPrice,
@@ -282,7 +289,7 @@ router.post("/:id/refresh", async (req, res) => {
 router.put("/:id/unit", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { productTypeId, packageQuantity, packageUnit } = req.body;
+    const { productTypeId, packageQuantity, packageUnit, itemCount } = req.body;
 
     await db
       .update(productsTable)
@@ -290,6 +297,7 @@ router.put("/:id/unit", async (req, res) => {
         productTypeId: productTypeId ?? null,
         packageQuantity: packageQuantity != null ? String(packageQuantity) : null,
         packageUnit: packageUnit ?? null,
+        itemCount: itemCount != null ? Number(itemCount) : null,
       })
       .where(eq(productsTable.id, id));
 

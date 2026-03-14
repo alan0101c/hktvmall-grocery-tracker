@@ -49,15 +49,23 @@ export const GetProductsResponseItem = zod.object({
   packageQuantity: zod
     .number()
     .nullish()
-    .describe("Amount in the package (e.g. 500 for 500ml)"),
+    .describe("Size of each natural unit (e.g. 950 for 950ml per bottle)"),
   packageUnit: zod
     .string()
     .nullish()
     .describe("Unit for packageQuantity (e.g. ml, g, tablet, pack)"),
+  itemCount: zod
+    .number()
+    .nullish()
+    .describe(
+      "Number of natural units in the package (e.g. 3 for a 3-pack). When set, pricePerUnit = price \/ itemCount (price per 950ml bottle). When null, pricePerUnit = price \/ packageQuantity (price per ml).",
+    ),
   pricePerUnit: zod
     .number()
     .nullish()
-    .describe("Calculated as currentPrice \/ packageQuantity"),
+    .describe(
+      "Per-item mode (itemCount set): price per item. Total mode (itemCount null): price per packageUnit.",
+    ),
   lastUpdated: zod.date(),
   alertPrice: zod.number().nullish(),
   isBelowAlert: zod.boolean(),
@@ -157,15 +165,23 @@ export const GetProductResponse = zod
     packageQuantity: zod
       .number()
       .nullish()
-      .describe("Amount in the package (e.g. 500 for 500ml)"),
+      .describe("Size of each natural unit (e.g. 950 for 950ml per bottle)"),
     packageUnit: zod
       .string()
       .nullish()
       .describe("Unit for packageQuantity (e.g. ml, g, tablet, pack)"),
+    itemCount: zod
+      .number()
+      .nullish()
+      .describe(
+        "Number of natural units in the package (e.g. 3 for a 3-pack). When set, pricePerUnit = price \/ itemCount (price per 950ml bottle). When null, pricePerUnit = price \/ packageQuantity (price per ml).",
+      ),
     pricePerUnit: zod
       .number()
       .nullish()
-      .describe("Calculated as currentPrice \/ packageQuantity"),
+      .describe(
+        "Per-item mode (itemCount set): price per item. Total mode (itemCount null): price per packageUnit.",
+      ),
     lastUpdated: zod.date(),
     alertPrice: zod.number().nullish(),
     isBelowAlert: zod.boolean(),
@@ -233,15 +249,23 @@ export const RefreshProductResponse = zod.object({
   packageQuantity: zod
     .number()
     .nullish()
-    .describe("Amount in the package (e.g. 500 for 500ml)"),
+    .describe("Size of each natural unit (e.g. 950 for 950ml per bottle)"),
   packageUnit: zod
     .string()
     .nullish()
     .describe("Unit for packageQuantity (e.g. ml, g, tablet, pack)"),
+  itemCount: zod
+    .number()
+    .nullish()
+    .describe(
+      "Number of natural units in the package (e.g. 3 for a 3-pack). When set, pricePerUnit = price \/ itemCount (price per 950ml bottle). When null, pricePerUnit = price \/ packageQuantity (price per ml).",
+    ),
   pricePerUnit: zod
     .number()
     .nullish()
-    .describe("Calculated as currentPrice \/ packageQuantity"),
+    .describe(
+      "Per-item mode (itemCount set): price per item. Total mode (itemCount null): price per packageUnit.",
+    ),
   lastUpdated: zod.date(),
   alertPrice: zod.number().nullish(),
   isBelowAlert: zod.boolean(),
@@ -262,8 +286,17 @@ export const UpdateProductUnitParams = zod.object({
 
 export const UpdateProductUnitBody = zod.object({
   productTypeId: zod.number().nullish(),
-  packageQuantity: zod.number().nullish(),
+  packageQuantity: zod
+    .number()
+    .nullish()
+    .describe("Size of each natural unit (e.g. 950 for 950ml per bottle)"),
   packageUnit: zod.string().nullish(),
+  itemCount: zod
+    .number()
+    .nullish()
+    .describe(
+      "Number of items in the package. When set, pricePerUnit = price \/ itemCount.",
+    ),
 });
 
 export const UpdateProductUnitResponse = zod.object({
@@ -290,15 +323,23 @@ export const UpdateProductUnitResponse = zod.object({
   packageQuantity: zod
     .number()
     .nullish()
-    .describe("Amount in the package (e.g. 500 for 500ml)"),
+    .describe("Size of each natural unit (e.g. 950 for 950ml per bottle)"),
   packageUnit: zod
     .string()
     .nullish()
     .describe("Unit for packageQuantity (e.g. ml, g, tablet, pack)"),
+  itemCount: zod
+    .number()
+    .nullish()
+    .describe(
+      "Number of natural units in the package (e.g. 3 for a 3-pack). When set, pricePerUnit = price \/ itemCount (price per 950ml bottle). When null, pricePerUnit = price \/ packageQuantity (price per ml).",
+    ),
   pricePerUnit: zod
     .number()
     .nullish()
-    .describe("Calculated as currentPrice \/ packageQuantity"),
+    .describe(
+      "Per-item mode (itemCount set): price per item. Total mode (itemCount null): price per packageUnit.",
+    ),
   lastUpdated: zod.date(),
   alertPrice: zod.number().nullish(),
   isBelowAlert: zod.boolean(),
