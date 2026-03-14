@@ -1,0 +1,503 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.2.0
+  description: HKTVMall Grocery Price Tracker API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: products
+    description: Tracked product management
+  - name: alerts
+    description: Price alert management
+  - name: scheduler
+    description: Scheduler configuration and status
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /products:
+    get:
+      operationId: getProducts
+      tags: [products]
+      summary: Get all tracked products
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by name
+        - name: belowAlert
+          in: query
+          schema:
+            type: boolean
+          description: Only products currently below their alert price
+      responses:
+        "200":
+          description: List of tracked products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+
+  /products/track:
+    post:
+      operationId: trackProduct
+      tags: [products]
+      summary: Add a product to the watchlist by HKTVMall URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TrackProductRequest"
+      responses:
+        "201":
+          description: Product tracked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          description: Invalid URL or product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /products/search:
+    get:
+      operationId: searchHKTVMall
+      tags: [products]
+      summary: Search HKTVMall for products to add
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search keyword
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SearchResult"
+
+  /products/refresh:
+    post:
+      operationId: refreshAllProducts
+      tags: [products]
+      summary: Manually trigger a price refresh for all tracked products
+      responses:
+        "200":
+          description: Refresh result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshResult"
+
+  /products/{id}:
+    get:
+      operationId: getProduct
+      tags: [products]
+      summary: Get a single product with price history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Product details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteProduct
+      tags: [products]
+      summary: Remove a product from the watchlist
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /products/{id}/refresh:
+    post:
+      operationId: refreshProduct
+      tags: [products]
+      summary: Refresh price for a single tracked product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /alerts:
+    get:
+      operationId: getAlerts
+      tags: [alerts]
+      summary: Get all price alerts
+      responses:
+        "200":
+          description: List of alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+    post:
+      operationId: createAlert
+      tags: [alerts]
+      summary: Set a price alert for a tracked product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAlertRequest"
+      responses:
+        "201":
+          description: Alert created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alert"
+
+  /alerts/{id}:
+    delete:
+      operationId: deleteAlert
+      tags: [alerts]
+      summary: Remove a price alert
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /alerts/triggered:
+    get:
+      operationId: getTriggeredAlerts
+      tags: [alerts]
+      summary: Get alerts where current price is at or below target
+      responses:
+        "200":
+          description: Triggered alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TriggeredAlert"
+
+  /scheduler:
+    get:
+      operationId: getScheduler
+      tags: [scheduler]
+      summary: Get scheduler status
+      responses:
+        "200":
+          description: Scheduler status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchedulerStatus"
+    put:
+      operationId: updateScheduler
+      tags: [scheduler]
+      summary: Update scheduler interval
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSchedulerRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchedulerStatus"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        nameZh:
+          type: string
+        brand:
+          type: string
+        category:
+          type: string
+        currentPrice:
+          type: number
+        originalPrice:
+          type: number
+        currency:
+          type: string
+        imageUrl:
+          type: string
+        productUrl:
+          type: string
+        sku:
+          type: string
+        inStock:
+          type: boolean
+        lastUpdated:
+          type: string
+          format: date-time
+        alertPrice:
+          type: number
+          nullable: true
+        isBelowAlert:
+          type: boolean
+        priceChange:
+          type: number
+          description: Price change since last check (positive = increase, negative = drop)
+          nullable: true
+      required:
+        - id
+        - name
+        - currentPrice
+        - currency
+        - lastUpdated
+        - isBelowAlert
+
+    ProductDetail:
+      allOf:
+        - $ref: "#/components/schemas/Product"
+        - type: object
+          properties:
+            priceHistory:
+              type: array
+              items:
+                $ref: "#/components/schemas/PriceRecord"
+          required: [priceHistory]
+
+    PriceRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        price:
+          type: number
+        recordedAt:
+          type: string
+          format: date-time
+      required: [id, price, recordedAt]
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: integer
+        productId:
+          type: integer
+        productName:
+          type: string
+        targetPrice:
+          type: number
+        currentPrice:
+          type: number
+        isTriggered:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, productId, productName, targetPrice, currentPrice, isTriggered, createdAt]
+
+    TriggeredAlert:
+      type: object
+      properties:
+        alertId:
+          type: integer
+        productId:
+          type: integer
+        productName:
+          type: string
+        productUrl:
+          type: string
+        imageUrl:
+          type: string
+        currentPrice:
+          type: number
+        targetPrice:
+          type: number
+        savings:
+          type: number
+        currency:
+          type: string
+      required: [alertId, productId, productName, currentPrice, targetPrice, savings, currency]
+
+    SearchResult:
+      type: object
+      properties:
+        name:
+          type: string
+        nameZh:
+          type: string
+        brand:
+          type: string
+        currentPrice:
+          type: number
+        originalPrice:
+          type: number
+        currency:
+          type: string
+        imageUrl:
+          type: string
+        productUrl:
+          type: string
+        sku:
+          type: string
+        isTracked:
+          type: boolean
+      required: [name, currentPrice, currency, productUrl, isTracked]
+
+    TrackProductRequest:
+      type: object
+      properties:
+        productUrl:
+          type: string
+          description: Full HKTVMall product URL
+        name:
+          type: string
+          description: Optional manual name override
+        targetPrice:
+          type: number
+          description: Optional alert price to set immediately
+      required: [productUrl]
+
+    RefreshResult:
+      type: object
+      properties:
+        refreshed:
+          type: integer
+        failed:
+          type: integer
+        priceDrops:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: string
+      required: [refreshed, failed, priceDrops, errors]
+
+    SchedulerStatus:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        intervalHours:
+          type: integer
+        lastRun:
+          type: string
+          format: date-time
+          nullable: true
+        nextRun:
+          type: string
+          format: date-time
+          nullable: true
+        totalRuns:
+          type: integer
+      required: [enabled, intervalHours, totalRuns]
+
+    UpdateSchedulerRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        intervalHours:
+          type: integer
+          description: How often to check prices (1, 3, 6, 12, 24)
+      required: [enabled, intervalHours]
+
+    CreateAlertRequest:
+      type: object
+      properties:
+        productId:
+          type: integer
+        targetPrice:
+          type: number
+      required: [productId, targetPrice]
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required: [success, message]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]

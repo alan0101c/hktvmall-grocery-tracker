@@ -1,0 +1,6 @@
+packages:
+  "framer-motion": "For smooth modal and layout animations"
+  "recharts": "For rendering beautiful price history line charts"
+  "date-fns": "For formatting dates and timestamps elegantly"
+  "clsx": "For conditional class names"
+  "tailwind-merge": "For merging tailwind classes safely"
