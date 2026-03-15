@@ -29,6 +29,7 @@ export interface Product {
   nameZh?: string;
   brand?: string;
   category?: string;
+  cheapestPrice: number;
   currentPrice: number;
   originalPrice?: number;
   /** HKTVmall Plus member price (lower than currentPrice when available) */

@@ -15,19 +15,20 @@ function buildProductResponse(
   typeNameMap?: Map<number, string>
 ) {
   const currentPrice = parseFloat(p.currentPrice);
+  const cheapestPrice = Math.min(currentPrice, p.plusPrice ?? Infinity)
   const alertPrice = alertMap.get(p.id) ?? null;
-  const isBelowAlert = alertPrice !== null && currentPrice <= alertPrice;
+  const isBelowAlert = alertPrice !== null && cheapestPrice <= alertPrice;
   const prevPrice = prevPriceMap?.get(p.id);
-  const priceChange = prevPrice !== undefined ? currentPrice - prevPrice : null;
+  const priceChange = prevPrice !== undefined ? cheapestPrice - prevPrice : null;
 
   const packageQuantity = p.packageQuantity ? parseFloat(p.packageQuantity) : null;
   const itemCount = p.itemCount ?? null;
 
   let pricePerUnit: number | null = null;
   if (itemCount !== null && itemCount > 0 && packageQuantity && packageQuantity > 0) {
-    pricePerUnit = Math.round((currentPrice / itemCount) * 10000) / 10000;
+    pricePerUnit = Math.round((cheapestPrice / itemCount) * 10000) / 10000;
   } else if (packageQuantity && packageQuantity > 0) {
-    pricePerUnit = Math.round((currentPrice / packageQuantity) * 10000) / 10000;
+    pricePerUnit = Math.round((cheapestPrice / packageQuantity) * 10000) / 10000;
   }
 
   const promotionTexts: string[] = p.promotionTexts ?? (p.promotionText ? [p.promotionText] : []);
@@ -38,6 +39,7 @@ function buildProductResponse(
     nameZh: p.nameZh ?? undefined,
     brand: p.brand ?? undefined,
     category: p.category ?? undefined,
+    cheapestPrice,  // Note: this is calculated, not from DB
     currentPrice,
     originalPrice: p.originalPrice ? parseFloat(p.originalPrice) : undefined,
     plusPrice: p.plusPrice ? parseFloat(p.plusPrice) : null,
@@ -53,11 +55,11 @@ function buildProductResponse(
     packageQuantity,
     packageUnit: p.packageUnit ?? null,
     itemCount,
-    pricePerUnit,
+    pricePerUnit,  // This is calculated in the route
     lastUpdated: p.lastUpdated,
     alertPrice,
     isBelowAlert,
-    priceChange,
+    priceChange,  // This is calculated from price history
   };
 }
 
