@@ -4,6 +4,8 @@
 
 pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
 
+**GitHub**: https://github.com/alan0101c/hktvmall-grocery-tracker
+
 ## Stack
 
 - **Monorepo tool**: pnpm workspaces
@@ -45,9 +47,10 @@ A full-stack grocery price tracking app for HKTVMall (https://www.hktvmall.com/h
 - Discount badge shows % off from original price
 
 ### DB Tables
-- `products` — tracked grocery items with current/original price, brand, category, SKU, etc.
-- `price_history` — price snapshots over time per product
+- `products` — tracked grocery items with current/original/plus price, brand, category, SKU, promotionTexts (jsonb), etc.
+- `price_history` — price snapshots over time per product (includes plusPrice, promotionTexts)
 - `alerts` — user-set price thresholds per product
+- `product_types` — user-defined categories with unit labels (e.g. "Laundry Detergent" / "ml")
 
 ### API Endpoints (all under /api)
 - `GET /api/products` — list products (supports ?search, ?category, ?belowAlert)
@@ -62,7 +65,7 @@ A full-stack grocery price tracking app for HKTVMall (https://www.hktvmall.com/h
 
 ### Scraper
 - Located at `artifacts/api-server/src/lib/scraper.ts`
-- **Product pages**: Uses Playwright headless Chromium to render JS-heavy HKTVMall product pages. Extracts name from `og:title`, price from `div.price`/`.pricelabel`, image from `og:image`.
+- **Product pages**: Uses Playwright headless Chromium to render JS-heavy HKTVMall product pages. Extracts name from `og:title`, price from `div.price`/`.pricelabel`, image from `og:image`. Also captures Plus member price from `.plusPriceSection--bottom span` and all promotion texts from `.promo-name`, `.threshold-promotion-description`, `.promoMsg`, etc.
 - **Search**: Uses HKTVMall's public Algolia API (app ID `8RN1Y79F02`, index `hktvProduct`) for fast keyword search — no browser needed.
 - **Browser singleton**: A single Chromium instance is reused across scrape calls; gracefully closed on SIGTERM/SIGINT.
 - **System dep**: Chromium installed via Nix (`installSystemDependencies`). The scraper resolves the path at runtime via `which chromium`. For custom paths, set `CHROMIUM_PATH` env var.

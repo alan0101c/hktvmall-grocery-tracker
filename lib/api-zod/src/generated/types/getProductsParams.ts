@@ -8,7 +8,7 @@
 
 export type GetProductsParams = {
   /**
-   * Search by name
+   * Search by product name or category name
    */
   search?: string;
   /**

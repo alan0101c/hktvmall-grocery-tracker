@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { productsTable, priceHistoryTable, alertsTable } from "@workspace/db";
-import { eq, ilike, and } from "drizzle-orm";
+import { productsTable, priceHistoryTable, alertsTable, productTypesTable } from "@workspace/db";
+import { eq, ilike, and, or } from "drizzle-orm";
 import { GetProductsQueryParams, TrackProductBody } from "@workspace/api-zod";
 import { scrapeProductByUrl, searchHKTVMall } from "../lib/scraper.js";
 import { refreshProduct, refreshAllProducts } from "../lib/refreshService.js";
@@ -11,7 +11,8 @@ const router: IRouter = Router();
 function buildProductResponse(
   p: typeof productsTable.$inferSelect,
   alertMap: Map<number, number>,
-  prevPriceMap?: Map<number, number>
+  prevPriceMap?: Map<number, number>,
+  typeNameMap?: Map<number, string>
 ) {
   const currentPrice = parseFloat(p.currentPrice);
   const alertPrice = alertMap.get(p.id) ?? null;
@@ -24,12 +25,12 @@ function buildProductResponse(
 
   let pricePerUnit: number | null = null;
   if (itemCount !== null && itemCount > 0 && packageQuantity && packageQuantity > 0) {
-    // Per-item mode: price per natural item (of size packageQuantity packageUnit each)
     pricePerUnit = Math.round((currentPrice / itemCount) * 10000) / 10000;
   } else if (packageQuantity && packageQuantity > 0) {
-    // Total mode: price per base unit (packageUnit)
     pricePerUnit = Math.round((currentPrice / packageQuantity) * 10000) / 10000;
   }
+
+  const promotionTexts: string[] = p.promotionTexts ?? (p.promotionText ? [p.promotionText] : []);
 
   return {
     id: p.id,
@@ -39,13 +40,16 @@ function buildProductResponse(
     category: p.category ?? undefined,
     currentPrice,
     originalPrice: p.originalPrice ? parseFloat(p.originalPrice) : undefined,
+    plusPrice: p.plusPrice ? parseFloat(p.plusPrice) : null,
     promotionText: p.promotionText ?? undefined,
+    promotionTexts,
     currency: p.currency,
     imageUrl: p.imageUrl ?? undefined,
     productUrl: p.productUrl ?? undefined,
     sku: p.sku ?? undefined,
     inStock: p.inStock,
     productTypeId: p.productTypeId ?? null,
+    productTypeName: (p.productTypeId && typeNameMap?.get(p.productTypeId)) || undefined,
     packageQuantity,
     packageUnit: p.packageUnit ?? null,
     itemCount,
@@ -112,6 +116,8 @@ router.post("/track", async (req, res) => {
       ? await db.select().from(productsTable).where(eq(productsTable.sku, scraped.sku))
       : await db.select().from(productsTable).where(eq(productsTable.productUrl, productUrl));
 
+    const scrapedPromotionTexts = scraped?.promotionTexts && scraped.promotionTexts.length > 0 ? scraped.promotionTexts : null;
+
     let productId: number;
     if (existing.length > 0) {
       productId = existing[0].id;
@@ -119,8 +125,10 @@ router.post("/track", async (req, res) => {
         .update(productsTable)
         .set({
           currentPrice: currentPrice.toString(),
-          originalPrice: scraped?.originalPrice?.toString(),
+          originalPrice: scraped?.originalPrice?.toString() ?? null,
+          plusPrice: scraped?.plusPrice?.toString() ?? null,
           promotionText: scraped?.promotionText ?? null,
+          promotionTexts: scrapedPromotionTexts,
           imageUrl: scraped?.imageUrl,
           inStock: scraped?.inStock ?? true,
           lastUpdated: new Date(),
@@ -129,6 +137,15 @@ router.post("/track", async (req, res) => {
           ...(packageUnit !== undefined && { packageUnit }),
         })
         .where(eq(productsTable.id, productId));
+
+      await db.insert(priceHistoryTable).values({
+        productId,
+        price: currentPrice.toString(),
+        originalPrice: scraped?.originalPrice?.toString() ?? null,
+        plusPrice: scraped?.plusPrice?.toString() ?? null,
+        promotionText: scraped?.promotionText ?? null,
+        promotionTexts: scrapedPromotionTexts,
+      });
     } else {
       const [inserted] = await db
         .insert(productsTable)
@@ -139,7 +156,9 @@ router.post("/track", async (req, res) => {
           category: scraped?.category ?? "Supermarket",
           currentPrice: currentPrice.toString(),
           originalPrice: scraped?.originalPrice?.toString(),
+          plusPrice: scraped?.plusPrice?.toString() ?? null,
           promotionText: scraped?.promotionText ?? null,
+          promotionTexts: scrapedPromotionTexts,
           currency: "HKD",
           imageUrl: scraped?.imageUrl,
           productUrl: productUrl,
@@ -157,7 +176,9 @@ router.post("/track", async (req, res) => {
         productId,
         price: currentPrice.toString(),
         originalPrice: scraped?.originalPrice?.toString() ?? null,
+        plusPrice: scraped?.plusPrice?.toString() ?? null,
         promotionText: scraped?.promotionText ?? null,
+        promotionTexts: scrapedPromotionTexts,
       });
     }
 
@@ -192,16 +213,28 @@ router.get("/", async (req, res) => {
   try {
     const query = GetProductsQueryParams.parse(req.query);
 
+    const allTypes = await db.select().from(productTypesTable);
+    const typeNameMap = new Map(allTypes.map((t) => [t.id, t.name]));
+
     const conditions = [];
     if (query.search) {
-      conditions.push(ilike(productsTable.name, `%${query.search}%`));
+      const pattern = `%${query.search}%`;
+      conditions.push(
+        or(
+          ilike(productsTable.name, pattern),
+          ilike(productTypesTable.name, pattern)
+        )!
+      );
     }
 
-    const products = await db
-      .select()
+    const rows = await db
+      .select({ product: productsTable })
       .from(productsTable)
+      .leftJoin(productTypesTable, eq(productsTable.productTypeId, productTypesTable.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(productsTable.lastUpdated);
+
+    const products = rows.map((r) => r.product);
 
     const alerts = await db.select().from(alertsTable);
     const alertMap = new Map(alerts.map((a) => [a.productId, parseFloat(a.targetPrice)]));
@@ -219,7 +252,7 @@ router.get("/", async (req, res) => {
     }
 
     const result = products
-      .map((p) => buildProductResponse(p, alertMap, prevPriceMap))
+      .map((p) => buildProductResponse(p, alertMap, prevPriceMap, typeNameMap))
       .filter((p) => {
         if (query.belowAlert) return p.isBelowAlert;
         return true;
@@ -251,13 +284,18 @@ router.get("/:id", async (req, res) => {
     const alerts = await db.select().from(alertsTable).where(eq(alertsTable.productId, id));
     const alertMap = new Map(alerts.map((a) => [a.productId, parseFloat(a.targetPrice)]));
 
+    const allTypes = await db.select().from(productTypesTable);
+    const typeNameMap = new Map(allTypes.map((t) => [t.id, t.name]));
+
     res.json({
-      ...buildProductResponse(p, alertMap),
+      ...buildProductResponse(p, alertMap, undefined, typeNameMap),
       priceHistory: history.map((h) => ({
         id: h.id,
         price: parseFloat(h.price),
         originalPrice: h.originalPrice ? parseFloat(h.originalPrice) : undefined,
+        plusPrice: h.plusPrice ? parseFloat(h.plusPrice) : null,
         promotionText: h.promotionText ?? undefined,
+        promotionTexts: h.promotionTexts ?? (h.promotionText ? [h.promotionText] : []),
         recordedAt: h.recordedAt,
       })),
     });

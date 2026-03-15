@@ -8,7 +8,9 @@ export interface ScrapedProduct {
   category?: string;
   currentPrice: number;
   originalPrice?: number;
+  plusPrice?: number;
   promotionText?: string;
+  promotionTexts: string[];
   currency: string;
   imageUrl?: string;
   productUrl: string;
@@ -160,8 +162,32 @@ export async function scrapeProductByUrl(
           '[class*="out-of-stock"], [class*="outOfStock"], [class*="sold-out"], [class*="soldOut"], [class*="unavailable"], .addToCartDisabled'
         );
 
-        // Detect promotion text (multi-buy deals like "兩件半價 | 平均1件$21")
+        let plusPriceStr = "";
+        const plusSelectors = [
+          ".plusPriceSection--bottom span",
+          ".plusPriceSection span:not(.plusPriceSection--top span)",
+          "[class*='plus-price'] span",
+          "[class*='plusPrice'] span",
+          "[class*='member-price'] span",
+          "[class*='memberPrice'] span",
+        ];
+        for (const sel of plusSelectors) {
+          const el = document.querySelector(sel);
+          if (el) {
+            const txt = el.textContent?.trim() || "";
+            if (txt.match(/\$\s*[\d,.]+/)) {
+              plusPriceStr = txt;
+              break;
+            }
+          }
+        }
+
+        const promotionTexts: string[] = [];
+        const seenPromos = new Set<string>();
         const promoSelectors = [
+          ".promo-name",
+          ".threshold-promotion-description",
+          ".promoMsg",
           ".multi-buy-promotion",
           ".promotionLabel",
           ".promotion-label",
@@ -172,16 +198,14 @@ export async function scrapeProductByUrl(
           "[class*='promo-label']",
           "[class*='promoLabel']",
         ];
-        let promotionText = "";
         for (const sel of promoSelectors) {
-          const el = document.querySelector(sel);
-          if (el) {
+          document.querySelectorAll(sel).forEach((el) => {
             const txt = el.textContent?.trim() || "";
-            if (txt.length > 0 && txt.length < 200) {
-              promotionText = txt;
-              break;
+            if (txt.length > 0 && txt.length < 200 && !seenPromos.has(txt)) {
+              seenPromos.add(txt);
+              promotionTexts.push(txt);
             }
-          }
+          });
         }
 
         return {
@@ -189,15 +213,17 @@ export async function scrapeProductByUrl(
           brand,
           currentPriceStr,
           originalPriceStr,
+          plusPriceStr,
           imageUrl,
           isOutOfStock,
           isSpecialPrice,
-          promotionText,
+          promotionTexts,
         };
       });
 
       const currentPrice = parsePrice(data.currentPriceStr);
       const originalPrice = parsePrice(data.originalPriceStr);
+      const plusPrice = parsePrice(data.plusPriceStr);
 
       if (!data.name || !currentPrice) return null;
 
@@ -210,7 +236,9 @@ export async function scrapeProductByUrl(
           originalPrice && originalPrice !== currentPrice
             ? originalPrice
             : undefined,
-        promotionText: data.promotionText || undefined,
+        plusPrice: plusPrice && plusPrice < currentPrice ? plusPrice : undefined,
+        promotionText: data.promotionTexts[0] || undefined,
+        promotionTexts: data.promotionTexts,
         currency: "HKD",
         imageUrl: data.imageUrl || undefined,
         productUrl: fullUrl,
@@ -302,6 +330,7 @@ export async function searchHKTVMall(
             originalPrice && originalPrice !== currentPrice
               ? originalPrice
               : undefined,
+          promotionTexts: [],
           currency: "HKD",
           imageUrl,
           productUrl,

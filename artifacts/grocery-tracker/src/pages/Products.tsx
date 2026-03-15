@@ -3,6 +3,7 @@ import { useGetProducts, useRefreshAllProducts, getGetProductsQueryKey, type Pro
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Search, Filter, Loader2, PackageOpen, RefreshCw } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 import { SchedulerSettings } from "@/components/SchedulerSettings";
 import { AddProductDialog } from "@/components/AddProductDialog";
@@ -130,8 +131,3 @@ export default function ProductsPage() {
     </div>
   );
 }
-
-// Temporary inline definition for `cn` missing in this scope, usually imported from utils
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
-function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)); }

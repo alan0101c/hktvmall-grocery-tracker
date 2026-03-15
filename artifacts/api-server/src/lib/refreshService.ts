@@ -29,12 +29,16 @@ export async function refreshProduct(productId: number): Promise<{ success: bool
     const newPrice = scraped.currentPrice;
     const priceChange = newPrice - oldPrice;
 
+    const promotionTexts = scraped.promotionTexts.length > 0 ? scraped.promotionTexts : null;
+
     await db
       .update(productsTable)
       .set({
         currentPrice: newPrice.toString(),
-        originalPrice: scraped.originalPrice?.toString(),
+        originalPrice: scraped.originalPrice?.toString() ?? null,
+        plusPrice: scraped.plusPrice?.toString() ?? null,
         promotionText: scraped.promotionText ?? null,
+        promotionTexts,
         imageUrl: scraped.imageUrl ?? product.imageUrl,
         inStock: scraped.inStock,
         nameZh: scraped.nameZh ?? product.nameZh,
@@ -43,14 +47,14 @@ export async function refreshProduct(productId: number): Promise<{ success: bool
       })
       .where(eq(productsTable.id, productId));
 
-    if (Math.abs(priceChange) > 0.001) {
-      await db.insert(priceHistoryTable).values({
-        productId,
-        price: newPrice.toString(),
-        originalPrice: scraped.originalPrice?.toString() ?? null,
-        promotionText: scraped.promotionText ?? null,
-      });
-    }
+    await db.insert(priceHistoryTable).values({
+      productId,
+      price: newPrice.toString(),
+      originalPrice: scraped.originalPrice?.toString() ?? null,
+      plusPrice: scraped.plusPrice?.toString() ?? null,
+      promotionText: scraped.promotionText ?? null,
+      promotionTexts,
+    });
 
     return { success: true, priceChange };
   } catch (err) {

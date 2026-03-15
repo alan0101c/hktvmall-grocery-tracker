@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, boolean, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, boolean, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -23,6 +23,8 @@ export const productsTable = pgTable("products", {
   sku: text("sku").unique(),
   inStock: boolean("in_stock").notNull().default(true),
   promotionText: text("promotion_text"),
+  plusPrice: numeric("plus_price", { precision: 10, scale: 2 }),
+  promotionTexts: jsonb("promotion_texts").$type<string[]>(),
   productTypeId: integer("product_type_id").references(() => productTypesTable.id, { onDelete: "set null" }),
   packageQuantity: numeric("package_quantity", { precision: 10, scale: 3 }),
   packageUnit: text("package_unit"),
@@ -37,6 +39,8 @@ export const priceHistoryTable = pgTable("price_history", {
   price: numeric("price", { precision: 10, scale: 2 }).notNull(),
   originalPrice: numeric("original_price", { precision: 10, scale: 2 }),
   promotionText: text("promotion_text"),
+  plusPrice: numeric("plus_price", { precision: 10, scale: 2 }),
+  promotionTexts: jsonb("promotion_texts").$type<string[]>(),
   recordedAt: timestamp("recorded_at").notNull().defaultNow(),
 });
 

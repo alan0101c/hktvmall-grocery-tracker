@@ -14,8 +14,12 @@ export interface Product {
   category?: string;
   currentPrice: number;
   originalPrice?: number;
-  /** Multi-buy or special promotion label scraped from HKTVMall */
+  /** HKTVmall Plus member price (lower than currentPrice when available) */
+  plusPrice?: number | null;
+  /** Multi-buy or special promotion label scraped from HKTVMall (legacy, first item of promotionTexts) */
   promotionText?: string;
+  /** All promotion texts scraped from HKTVMall product page (always present, may be empty) */
+  promotionTexts?: string[];
   currency: string;
   imageUrl?: string;
   productUrl?: string;
@@ -23,11 +27,15 @@ export interface Product {
   inStock?: boolean;
   /** Reference to a user-defined product type */
   productTypeId?: number | null;
-  /** Amount in the package (e.g. 500 for 500ml) */
+  /** Size of each natural unit (e.g. 950 for 950ml per bottle) */
   packageQuantity?: number | null;
   /** Unit for packageQuantity (e.g. ml, g, tablet, pack) */
   packageUnit?: string | null;
-  /** Calculated as currentPrice / packageQuantity */
+  /** Resolved name of the product type (category) */
+  productTypeName?: string;
+  /** Number of natural units in the package (e.g. 3 for a 3-pack). When set, pricePerUnit = price / itemCount (price per 950ml bottle). When null, pricePerUnit = price / packageQuantity (price per ml). */
+  itemCount?: number | null;
+  /** Per-item mode (itemCount set): price per item. Total mode (itemCount null): price per packageUnit. */
   pricePerUnit?: number | null;
   lastUpdated: Date;
   alertPrice?: number | null;

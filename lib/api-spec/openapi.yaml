@@ -41,7 +41,7 @@ paths:
           in: query
           schema:
             type: string
-          description: Search by name
+          description: Search by product name or category name
         - name: belowAlert
           in: query
           schema:
@@ -401,9 +401,18 @@ components:
           type: number
         originalPrice:
           type: number
+        plusPrice:
+          type: number
+          nullable: true
+          description: HKTVmall Plus member price (lower than currentPrice when available)
         promotionText:
           type: string
-          description: Multi-buy or special promotion label scraped from HKTVMall
+          description: Multi-buy or special promotion label scraped from HKTVMall (legacy, first item of promotionTexts)
+        promotionTexts:
+          type: array
+          items:
+            type: string
+          description: All promotion texts scraped from HKTVMall product page (always present, may be empty)
         currency:
           type: string
         imageUrl:
@@ -426,6 +435,9 @@ components:
           type: string
           nullable: true
           description: Unit for packageQuantity (e.g. ml, g, tablet, pack)
+        productTypeName:
+          type: string
+          description: Resolved name of the product type (category)
         itemCount:
           type: integer
           nullable: true
@@ -474,8 +486,17 @@ components:
           type: number
         originalPrice:
           type: number
+        plusPrice:
+          type: number
+          nullable: true
+          description: HKTVmall Plus member price at time of recording
         promotionText:
           type: string
+        promotionTexts:
+          type: array
+          items:
+            type: string
+          description: All promotion texts at time of recording (always present, may be empty)
         recordedAt:
           type: string
           format: date-time

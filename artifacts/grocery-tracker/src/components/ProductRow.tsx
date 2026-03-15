@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trash2, Bell, RefreshCw, TrendingDown, TrendingUp, ExternalLink, Tag, Scale, X, Check, Loader2, Hash, Beaker } from "lucide-react";
+import { Trash2, Bell, RefreshCw, TrendingDown, TrendingUp, ExternalLink, Tag, Scale, X, Check, Loader2, Hash, Beaker, Crown, Layers } from "lucide-react";
 import {
   type Product,
   useDeleteProduct,
@@ -115,6 +115,8 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
     ? Math.round(((product.originalPrice! - product.currentPrice) / product.originalPrice!) * 100)
     : 0;
 
+  const promoList: string[] = product.promotionTexts ?? (product.promotionText ? [product.promotionText] : []);
+
   const hasUnitPrice = product.pricePerUnit != null && product.pricePerUnit > 0 && product.packageUnit;
 
   // Badge label differs by mode: per-item → "HK$X/950ml"; total → "HK$X/ml"
@@ -182,9 +184,25 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-3">
             <div className="flex items-baseline gap-2">
-              <span className="text-xl font-bold text-foreground">{formatHKD(product.currentPrice)}</span>
-              {hasDiscount && (
-                <span className="text-xs text-muted-foreground line-through">{formatHKD(product.originalPrice)}</span>
+              {product.plusPrice != null ? (
+                <>
+                  <span className="inline-flex items-center gap-1 text-xl font-bold text-emerald-700">
+                    <Crown className="w-4 h-4 shrink-0" />
+                    {formatHKD(product.plusPrice)}
+                  </span>
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-md">Plus</span>
+                  <span className="text-xs text-muted-foreground line-through">{formatHKD(product.currentPrice)}</span>
+                  {hasDiscount && (
+                    <span className="text-[10px] text-muted-foreground/60 line-through">{formatHKD(product.originalPrice)}</span>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span className="text-xl font-bold text-foreground">{formatHKD(product.currentPrice)}</span>
+                  {hasDiscount && (
+                    <span className="text-xs text-muted-foreground line-through">{formatHKD(product.originalPrice)}</span>
+                  )}
+                </>
               )}
             </div>
 
@@ -203,12 +221,18 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
           </div>
 
           {/* Badges */}
-          {(product.promotionText || unitPriceBadge) && (
+          {(promoList.length > 0 || unitPriceBadge || product.productTypeName) && (
             <div className="flex flex-wrap items-center gap-2 mt-2">
-              {product.promotionText && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-semibold rounded-lg leading-tight max-w-[240px] truncate">
+              {promoList.map((txt, i) => (
+                <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-semibold rounded-lg leading-tight max-w-[240px] truncate">
                   <Tag className="w-3 h-3 shrink-0" />
-                  <span className="truncate">{product.promotionText}</span>
+                  <span className="truncate">{txt}</span>
+                </span>
+              ))}
+              {product.productTypeName && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-sky-50 border border-sky-200 text-sky-700 text-[11px] font-semibold rounded-lg leading-tight">
+                  <Layers className="w-3 h-3 shrink-0" />
+                  {product.productTypeName}
                 </span>
               )}
               {unitPriceBadge && (

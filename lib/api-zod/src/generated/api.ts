@@ -18,7 +18,10 @@ export const HealthCheckResponse = zod.object({
  * @summary Get all tracked products
  */
 export const GetProductsQueryParams = zod.object({
-  search: zod.coerce.string().optional().describe("Search by name"),
+  search: zod.coerce
+    .string()
+    .optional()
+    .describe("Search by product name or category name"),
   belowAlert: zod.coerce
     .boolean()
     .optional()
@@ -33,10 +36,24 @@ export const GetProductsResponseItem = zod.object({
   category: zod.string().optional(),
   currentPrice: zod.number(),
   originalPrice: zod.number().optional(),
+  plusPrice: zod
+    .number()
+    .nullish()
+    .describe(
+      "HKTVmall Plus member price (lower than currentPrice when available)",
+    ),
   promotionText: zod
     .string()
     .optional()
-    .describe("Multi-buy or special promotion label scraped from HKTVMall"),
+    .describe(
+      "Multi-buy or special promotion label scraped from HKTVMall (legacy, first item of promotionTexts)",
+    ),
+  promotionTexts: zod
+    .array(zod.string())
+    .optional()
+    .describe(
+      "All promotion texts scraped from HKTVMall product page (always present, may be empty)",
+    ),
   currency: zod.string(),
   imageUrl: zod.string().optional(),
   productUrl: zod.string().optional(),
@@ -54,6 +71,10 @@ export const GetProductsResponseItem = zod.object({
     .string()
     .nullish()
     .describe("Unit for packageQuantity (e.g. ml, g, tablet, pack)"),
+  productTypeName: zod
+    .string()
+    .optional()
+    .describe("Resolved name of the product type (category)"),
   itemCount: zod
     .number()
     .nullish()
@@ -149,10 +170,24 @@ export const GetProductResponse = zod
     category: zod.string().optional(),
     currentPrice: zod.number(),
     originalPrice: zod.number().optional(),
+    plusPrice: zod
+      .number()
+      .nullish()
+      .describe(
+        "HKTVmall Plus member price (lower than currentPrice when available)",
+      ),
     promotionText: zod
       .string()
       .optional()
-      .describe("Multi-buy or special promotion label scraped from HKTVMall"),
+      .describe(
+        "Multi-buy or special promotion label scraped from HKTVMall (legacy, first item of promotionTexts)",
+      ),
+    promotionTexts: zod
+      .array(zod.string())
+      .optional()
+      .describe(
+        "All promotion texts scraped from HKTVMall product page (always present, may be empty)",
+      ),
     currency: zod.string(),
     imageUrl: zod.string().optional(),
     productUrl: zod.string().optional(),
@@ -170,6 +205,10 @@ export const GetProductResponse = zod
       .string()
       .nullish()
       .describe("Unit for packageQuantity (e.g. ml, g, tablet, pack)"),
+    productTypeName: zod
+      .string()
+      .optional()
+      .describe("Resolved name of the product type (category)"),
     itemCount: zod
       .number()
       .nullish()
@@ -199,7 +238,17 @@ export const GetProductResponse = zod
           id: zod.number(),
           price: zod.number(),
           originalPrice: zod.number().optional(),
+          plusPrice: zod
+            .number()
+            .nullish()
+            .describe("HKTVmall Plus member price at time of recording"),
           promotionText: zod.string().optional(),
+          promotionTexts: zod
+            .array(zod.string())
+            .optional()
+            .describe(
+              "All promotion texts at time of recording (always present, may be empty)",
+            ),
           recordedAt: zod.date(),
         }),
       ),
@@ -233,10 +282,24 @@ export const RefreshProductResponse = zod.object({
   category: zod.string().optional(),
   currentPrice: zod.number(),
   originalPrice: zod.number().optional(),
+  plusPrice: zod
+    .number()
+    .nullish()
+    .describe(
+      "HKTVmall Plus member price (lower than currentPrice when available)",
+    ),
   promotionText: zod
     .string()
     .optional()
-    .describe("Multi-buy or special promotion label scraped from HKTVMall"),
+    .describe(
+      "Multi-buy or special promotion label scraped from HKTVMall (legacy, first item of promotionTexts)",
+    ),
+  promotionTexts: zod
+    .array(zod.string())
+    .optional()
+    .describe(
+      "All promotion texts scraped from HKTVMall product page (always present, may be empty)",
+    ),
   currency: zod.string(),
   imageUrl: zod.string().optional(),
   productUrl: zod.string().optional(),
@@ -254,6 +317,10 @@ export const RefreshProductResponse = zod.object({
     .string()
     .nullish()
     .describe("Unit for packageQuantity (e.g. ml, g, tablet, pack)"),
+  productTypeName: zod
+    .string()
+    .optional()
+    .describe("Resolved name of the product type (category)"),
   itemCount: zod
     .number()
     .nullish()
@@ -307,10 +374,24 @@ export const UpdateProductUnitResponse = zod.object({
   category: zod.string().optional(),
   currentPrice: zod.number(),
   originalPrice: zod.number().optional(),
+  plusPrice: zod
+    .number()
+    .nullish()
+    .describe(
+      "HKTVmall Plus member price (lower than currentPrice when available)",
+    ),
   promotionText: zod
     .string()
     .optional()
-    .describe("Multi-buy or special promotion label scraped from HKTVMall"),
+    .describe(
+      "Multi-buy or special promotion label scraped from HKTVMall (legacy, first item of promotionTexts)",
+    ),
+  promotionTexts: zod
+    .array(zod.string())
+    .optional()
+    .describe(
+      "All promotion texts scraped from HKTVMall product page (always present, may be empty)",
+    ),
   currency: zod.string(),
   imageUrl: zod.string().optional(),
   productUrl: zod.string().optional(),
@@ -328,6 +409,10 @@ export const UpdateProductUnitResponse = zod.object({
     .string()
     .nullish()
     .describe("Unit for packageQuantity (e.g. ml, g, tablet, pack)"),
+  productTypeName: zod
+    .string()
+    .optional()
+    .describe("Resolved name of the product type (category)"),
   itemCount: zod
     .number()
     .nullish()
