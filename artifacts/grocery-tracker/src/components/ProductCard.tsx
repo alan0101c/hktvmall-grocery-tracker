@@ -14,10 +14,12 @@ export function ProductCard({ product, onClick, onSetAlert }: ProductCardProps) 
     ? Math.round((1 - product.currentPrice / product.originalPrice) * 100)
     : 0;
 
+  const isOutOfStock = product.inStock === false;
+
   return (
     <div 
       onClick={() => onClick(product)}
-      className="group flex flex-col bg-card rounded-2xl border border-border shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 overflow-hidden cursor-pointer h-full"
+      className={`group flex flex-col bg-card rounded-2xl border border-border shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 overflow-hidden cursor-pointer h-full${isOutOfStock ? " opacity-60" : ""}`}
     >
       <div className="relative aspect-square p-6 flex items-center justify-center bg-white">
         {product.imageUrl ? (
@@ -29,6 +31,15 @@ export function ProductCard({ product, onClick, onSetAlert }: ProductCardProps) 
           />
         ) : (
           <ImageIcon className="w-12 h-12 text-muted-foreground/30" />
+        )}
+
+        {/* Out of stock overlay */}
+        {isOutOfStock && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/40">
+            <span className="px-3 py-1.5 bg-muted/90 text-muted-foreground text-xs font-semibold rounded-lg border border-border/60 shadow-sm backdrop-blur-sm">
+              Out of Stock
+            </span>
+          </div>
         )}
         
         {/* Badges container */}

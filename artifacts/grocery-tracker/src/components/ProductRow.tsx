@@ -115,7 +115,7 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
     ? Math.round(((product.originalPrice! - product.currentPrice) / product.originalPrice!) * 100)
     : 0;
 
-  const promoList: string[] = product.promotionTexts ?? (product.promotionText ? [product.promotionText] : []);
+  const promoList: string[] = product.promotionTexts ?? [];
 
   const hasUnitPrice = product.pricePerUnit != null && product.pricePerUnit > 0 && product.packageUnit;
 
@@ -148,13 +148,16 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
     return `${formatHKD(previewPricePerUnit)}/${packageUnit || "unit"}`;
   })();
 
+  const isOutOfStock = product.inStock === false;
+
   return (
     <div
       onClick={editingUnit ? undefined : onClick}
       className={cn(
         "group relative flex flex-col gap-0 bg-card border rounded-2xl transition-all",
         !editingUnit && "cursor-pointer hover:shadow-lg hover:border-primary/30",
-        product.isBelowAlert ? "border-primary/50 bg-primary/5" : "border-border shadow-sm shadow-black/5"
+        product.isBelowAlert ? "border-primary/50 bg-primary/5" : "border-border shadow-sm shadow-black/5",
+        isOutOfStock && "opacity-60 border-border/50"
       )}
     >
       {/* Main row */}
@@ -176,9 +179,16 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
         {/* Info */}
         <div className="flex-1 min-w-0 w-full">
           <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-foreground truncate text-sm sm:text-base leading-tight group-hover:text-primary transition-colors">
-              {product.name}
-            </h3>
+            <div className="flex items-center gap-2 min-w-0">
+              <h3 className="font-bold text-foreground truncate text-sm sm:text-base leading-tight group-hover:text-primary transition-colors">
+                {product.name}
+              </h3>
+              {isOutOfStock && (
+                <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 bg-muted text-muted-foreground text-[10px] font-semibold rounded-md border border-border/60">
+                  Out of Stock
+                </span>
+              )}
+            </div>
             {product.nameZh && <p className="text-xs text-muted-foreground truncate mt-0.5">{product.nameZh}</p>}
           </div>
 

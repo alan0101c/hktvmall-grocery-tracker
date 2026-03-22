@@ -12,7 +12,6 @@ export interface PriceRecord {
   originalPrice?: number;
   /** HKTVmall Plus member price at time of recording */
   plusPrice?: number | null;
-  promotionText?: string;
   /** All promotion texts at time of recording (always present, may be empty) */
   promotionTexts?: string[];
   recordedAt: Date;

@@ -405,9 +405,6 @@ components:
           type: number
           nullable: true
           description: HKTVmall Plus member price (lower than currentPrice when available)
-        promotionText:
-          type: string
-          description: Multi-buy or special promotion label scraped from HKTVMall (legacy, first item of promotionTexts)
         promotionTexts:
           type: array
           items:
@@ -490,8 +487,6 @@ components:
           type: number
           nullable: true
           description: HKTVmall Plus member price at time of recording
-        promotionText:
-          type: string
         promotionTexts:
           type: array
           items:

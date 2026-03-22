@@ -9,7 +9,6 @@ export interface ScrapedProduct {
   currentPrice: number;
   originalPrice?: number;
   plusPrice?: number;
-  promotionText?: string;
   promotionTexts: string[];
   currency: string;
   imageUrl?: string;
@@ -158,9 +157,21 @@ export async function scrapeProductByUrl(
           ) as HTMLImageElement)?.src ||
           "";
 
-        const isOutOfStock = !!document.querySelector(
+        const hasOutOfStockClass = !!document.querySelector(
           '[class*="out-of-stock"], [class*="outOfStock"], [class*="sold-out"], [class*="soldOut"], [class*="unavailable"], .addToCartDisabled'
         );
+
+        const pageText = document.body.innerText || "";
+        const hasOutOfStockText = /out[\s-]?of[\s-]?stock|已售罄|缺貨|无货|售罄/i.test(pageText);
+
+        const addToCartBtn = document.querySelector(
+          'button[class*="addToCart"], button[class*="add-to-cart"], [data-testid*="add-to-cart"], button[class*="AddCart"], button[class*="buyNow"], button[class*="buy-now"]'
+        ) as HTMLButtonElement | null;
+        const addToCartClearlyAvailable = addToCartBtn !== null
+          && !addToCartBtn.disabled
+          && addToCartBtn.getAttribute("aria-disabled") !== "true";
+
+        const isOutOfStock = hasOutOfStockClass || hasOutOfStockText || !addToCartClearlyAvailable;
 
         let plusPriceStr = "";
         const plusSelectors = [
@@ -237,7 +248,6 @@ export async function scrapeProductByUrl(
             ? originalPrice
             : undefined,
         plusPrice: plusPrice && plusPrice < currentPrice ? plusPrice : undefined,
-        promotionText: data.promotionTexts[0] || undefined,
         promotionTexts: data.promotionTexts,
         currency: "HKD",
         imageUrl: data.imageUrl || undefined,
@@ -335,7 +345,7 @@ export async function searchHKTVMall(
           imageUrl,
           productUrl,
           sku: hit.code,
-          inStock: hit.hasStock ?? true,
+          inStock: hit.hasStock === true,
         };
       })
       .filter((x): x is ScrapedProduct => x !== null);

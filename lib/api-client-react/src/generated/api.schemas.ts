@@ -29,13 +29,10 @@ export interface Product {
   nameZh?: string;
   brand?: string;
   category?: string;
-  cheapestPrice: number;
   currentPrice: number;
   originalPrice?: number;
   /** HKTVmall Plus member price (lower than currentPrice when available) */
   plusPrice?: number | null;
-  /** Multi-buy or special promotion label scraped from HKTVMall (legacy, first item of promotionTexts) */
-  promotionText?: string;
   /** All promotion texts scraped from HKTVMall product page (always present, may be empty) */
   promotionTexts?: string[];
   currency: string;
@@ -68,7 +65,6 @@ export interface PriceRecord {
   originalPrice?: number;
   /** HKTVmall Plus member price at time of recording */
   plusPrice?: number | null;
-  promotionText?: string;
   /** All promotion texts at time of recording (always present, may be empty) */
   promotionTexts?: string[];
   recordedAt: string;

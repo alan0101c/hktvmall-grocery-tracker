@@ -37,7 +37,6 @@ export async function refreshProduct(productId: number): Promise<{ success: bool
         currentPrice: newPrice.toString(),
         originalPrice: scraped.originalPrice?.toString() ?? null,
         plusPrice: scraped.plusPrice?.toString() ?? null,
-        promotionText: scraped.promotionText ?? null,
         promotionTexts,
         imageUrl: scraped.imageUrl ?? product.imageUrl,
         inStock: scraped.inStock,
@@ -52,7 +51,6 @@ export async function refreshProduct(productId: number): Promise<{ success: bool
       price: newPrice.toString(),
       originalPrice: scraped.originalPrice?.toString() ?? null,
       plusPrice: scraped.plusPrice?.toString() ?? null,
-      promotionText: scraped.promotionText ?? null,
       promotionTexts,
     });
 

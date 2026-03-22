@@ -15,23 +15,22 @@ function buildProductResponse(
   typeNameMap?: Map<number, string>
 ) {
   const currentPrice = parseFloat(p.currentPrice);
-  const cheapestPrice = Math.min(currentPrice, p.plusPrice ?? Infinity)
   const alertPrice = alertMap.get(p.id) ?? null;
-  const isBelowAlert = alertPrice !== null && cheapestPrice <= alertPrice;
+  const isBelowAlert = alertPrice !== null && currentPrice <= alertPrice;
   const prevPrice = prevPriceMap?.get(p.id);
-  const priceChange = prevPrice !== undefined ? cheapestPrice - prevPrice : null;
+  const priceChange = prevPrice !== undefined ? currentPrice - prevPrice : null;
 
   const packageQuantity = p.packageQuantity ? parseFloat(p.packageQuantity) : null;
   const itemCount = p.itemCount ?? null;
 
   let pricePerUnit: number | null = null;
   if (itemCount !== null && itemCount > 0 && packageQuantity && packageQuantity > 0) {
-    pricePerUnit = Math.round((cheapestPrice / itemCount) * 10000) / 10000;
+    pricePerUnit = Math.round((currentPrice / itemCount) * 10000) / 10000;
   } else if (packageQuantity && packageQuantity > 0) {
-    pricePerUnit = Math.round((cheapestPrice / packageQuantity) * 10000) / 10000;
+    pricePerUnit = Math.round((currentPrice / packageQuantity) * 10000) / 10000;
   }
 
-  const promotionTexts: string[] = p.promotionTexts ?? (p.promotionText ? [p.promotionText] : []);
+  const promotionTexts: string[] = p.promotionTexts ?? [];
 
   return {
     id: p.id,
@@ -39,11 +38,9 @@ function buildProductResponse(
     nameZh: p.nameZh ?? undefined,
     brand: p.brand ?? undefined,
     category: p.category ?? undefined,
-    cheapestPrice,  // Note: this is calculated, not from DB
     currentPrice,
     originalPrice: p.originalPrice ? parseFloat(p.originalPrice) : undefined,
     plusPrice: p.plusPrice ? parseFloat(p.plusPrice) : null,
-    promotionText: p.promotionText ?? undefined,
     promotionTexts,
     currency: p.currency,
     imageUrl: p.imageUrl ?? undefined,
@@ -55,11 +52,11 @@ function buildProductResponse(
     packageQuantity,
     packageUnit: p.packageUnit ?? null,
     itemCount,
-    pricePerUnit,  // This is calculated in the route
+    pricePerUnit,
     lastUpdated: p.lastUpdated,
     alertPrice,
     isBelowAlert,
-    priceChange,  // This is calculated from price history
+    priceChange,
   };
 }
 
@@ -129,7 +126,6 @@ router.post("/track", async (req, res) => {
           currentPrice: currentPrice.toString(),
           originalPrice: scraped?.originalPrice?.toString() ?? null,
           plusPrice: scraped?.plusPrice?.toString() ?? null,
-          promotionText: scraped?.promotionText ?? null,
           promotionTexts: scrapedPromotionTexts,
           imageUrl: scraped?.imageUrl,
           inStock: scraped?.inStock ?? true,
@@ -145,7 +141,6 @@ router.post("/track", async (req, res) => {
         price: currentPrice.toString(),
         originalPrice: scraped?.originalPrice?.toString() ?? null,
         plusPrice: scraped?.plusPrice?.toString() ?? null,
-        promotionText: scraped?.promotionText ?? null,
         promotionTexts: scrapedPromotionTexts,
       });
     } else {
@@ -159,7 +154,6 @@ router.post("/track", async (req, res) => {
           currentPrice: currentPrice.toString(),
           originalPrice: scraped?.originalPrice?.toString(),
           plusPrice: scraped?.plusPrice?.toString() ?? null,
-          promotionText: scraped?.promotionText ?? null,
           promotionTexts: scrapedPromotionTexts,
           currency: "HKD",
           imageUrl: scraped?.imageUrl,
@@ -179,7 +173,6 @@ router.post("/track", async (req, res) => {
         price: currentPrice.toString(),
         originalPrice: scraped?.originalPrice?.toString() ?? null,
         plusPrice: scraped?.plusPrice?.toString() ?? null,
-        promotionText: scraped?.promotionText ?? null,
         promotionTexts: scrapedPromotionTexts,
       });
     }
@@ -296,8 +289,7 @@ router.get("/:id", async (req, res) => {
         price: parseFloat(h.price),
         originalPrice: h.originalPrice ? parseFloat(h.originalPrice) : undefined,
         plusPrice: h.plusPrice ? parseFloat(h.plusPrice) : null,
-        promotionText: h.promotionText ?? undefined,
-        promotionTexts: h.promotionTexts ?? (h.promotionText ? [h.promotionText] : []),
+        promotionTexts: h.promotionTexts ?? [],
         recordedAt: h.recordedAt,
       })),
     });

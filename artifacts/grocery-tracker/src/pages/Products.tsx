@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useGetProducts, useRefreshAllProducts, getGetProductsQueryKey, type Product } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Filter, Loader2, PackageOpen, RefreshCw } from "lucide-react";
+import { Plus, Search, Filter, Loader2, PackageOpen, RefreshCw, Bell, TrendingDown } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,29 @@ import { AddProductDialog } from "@/components/AddProductDialog";
 import { ProductRow } from "@/components/ProductRow";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
 import { SetAlertModal } from "@/components/SetAlertModal";
+
+function groupProducts(products: Product[]): Map<string, Product[]> {
+  const map = new Map<string, Product[]>();
+  for (const p of products) {
+    const key = p.productTypeName ?? p.category ?? "Uncategorised";
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(p);
+  }
+  for (const group of map.values()) {
+    group.sort((a, b) => {
+      if (a.isBelowAlert && !b.isBelowAlert) return -1;
+      if (!a.isBelowAlert && b.isBelowAlert) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }
+  return new Map(
+    [...map.entries()].sort(([a], [b]) => {
+      if (a === "Uncategorised") return 1;
+      if (b === "Uncategorised") return -1;
+      return a.localeCompare(b);
+    })
+  );
+}
 
 export default function ProductsPage() {
   const [search, setSearch] = useState("");
@@ -25,6 +48,8 @@ export default function ProductsPage() {
   
   const refreshAllMutation = useRefreshAllProducts();
   const queryClient = useQueryClient();
+
+  const groupedProducts = useMemo(() => groupProducts(products), [products]);
 
   const handleRefreshAll = () => {
     refreshAllMutation.mutate(undefined, {
@@ -90,15 +115,61 @@ export default function ProductsPage() {
       {isLoading ? (
         <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
       ) : products.length > 0 ? (
-        <div className="flex flex-col gap-3">
-          {products.map((product) => (
-            <ProductRow 
-              key={product.id} 
-              product={product} 
-              onClick={() => setSelectedProductId(product.id)}
-              onSetAlert={(e) => { e.stopPropagation(); setAlertProduct(product); }}
-            />
-          ))}
+        <div className="flex flex-col gap-8">
+          {[...groupedProducts.entries()].map(([category, group]) => {
+            const hasAlert = group.some((p) => p.isBelowAlert);
+            const hasDrop = !hasAlert && group.some(
+              (p) => p.originalPrice !== undefined && p.originalPrice > p.currentPrice
+            );
+
+            return (
+              <div key={category}>
+                {/* Category header */}
+                <div className="flex items-center gap-2 mb-3 px-1">
+                  <span
+                    className={cn(
+                      "text-xs font-bold tracking-widest uppercase",
+                      hasAlert ? "text-destructive" : hasDrop ? "text-amber-600" : "text-muted-foreground"
+                    )}
+                  >
+                    {category}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
+                      hasAlert
+                        ? "bg-destructive/10 text-destructive"
+                        : hasDrop
+                        ? "bg-amber-50 border border-amber-200 text-amber-600"
+                        : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {group.length}
+                  </span>
+                  <div
+                    className={cn(
+                      "flex-1 h-px",
+                      hasAlert ? "bg-destructive/25" : hasDrop ? "bg-amber-200" : "bg-border"
+                    )}
+                  />
+                  {hasAlert && <Bell className="w-3.5 h-3.5 text-destructive shrink-0" />}
+                  {hasDrop && <TrendingDown className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                </div>
+
+                {/* Products in this category */}
+                <div className="flex flex-col gap-3">
+                  {group.map((product) => (
+                    <ProductRow
+                      key={product.id}
+                      product={product}
+                      onClick={() => setSelectedProductId(product.id)}
+                      onSetAlert={(e) => { e.stopPropagation(); setAlertProduct(product); }}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="py-24 flex flex-col items-center justify-center text-center px-4 bg-card border border-border/50 border-dashed rounded-3xl">
