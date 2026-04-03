@@ -492,10 +492,13 @@ components:
           items:
             type: string
           description: All promotion texts at time of recording (always present, may be empty)
+        inStock:
+          type: boolean
+          description: Whether the product was in stock at time of recording
         recordedAt:
           type: string
           format: date-time
-      required: [id, price, recordedAt]
+      required: [id, price, inStock, recordedAt]
 
     UpdateProductUnitRequest:
       type: object

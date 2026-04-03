@@ -14,5 +14,7 @@ export interface PriceRecord {
   plusPrice?: number | null;
   /** All promotion texts at time of recording (always present, may be empty) */
   promotionTexts?: string[];
+  /** Whether the product was in stock at time of recording */
+  inStock: boolean;
   recordedAt: Date;
 }

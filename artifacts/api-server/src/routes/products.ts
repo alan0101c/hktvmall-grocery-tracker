@@ -142,6 +142,7 @@ router.post("/track", async (req, res) => {
         originalPrice: scraped?.originalPrice?.toString() ?? null,
         plusPrice: scraped?.plusPrice?.toString() ?? null,
         promotionTexts: scrapedPromotionTexts,
+        inStock: scraped?.inStock ?? true,
       });
     } else {
       const [inserted] = await db
@@ -174,6 +175,7 @@ router.post("/track", async (req, res) => {
         originalPrice: scraped?.originalPrice?.toString() ?? null,
         plusPrice: scraped?.plusPrice?.toString() ?? null,
         promotionTexts: scrapedPromotionTexts,
+        inStock: scraped?.inStock ?? true,
       });
     }
 
@@ -290,6 +292,7 @@ router.get("/:id", async (req, res) => {
         originalPrice: h.originalPrice ? parseFloat(h.originalPrice) : undefined,
         plusPrice: h.plusPrice ? parseFloat(h.plusPrice) : null,
         promotionTexts: h.promotionTexts ?? [],
+        inStock: h.inStock,
         recordedAt: h.recordedAt,
       })),
     });

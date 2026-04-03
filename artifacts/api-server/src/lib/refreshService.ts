@@ -52,6 +52,7 @@ export async function refreshProduct(productId: number): Promise<{ success: bool
       originalPrice: scraped.originalPrice?.toString() ?? null,
       plusPrice: scraped.plusPrice?.toString() ?? null,
       promotionTexts,
+      inStock: scraped.inStock ?? true,
     });
 
     return { success: true, priceChange };

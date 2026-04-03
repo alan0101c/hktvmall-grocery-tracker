@@ -39,6 +39,7 @@ export const priceHistoryTable = pgTable("price_history", {
   originalPrice: numeric("original_price", { precision: 10, scale: 2 }),
   plusPrice: numeric("plus_price", { precision: 10, scale: 2 }),
   promotionTexts: jsonb("promotion_texts").$type<string[]>(),
+  inStock: boolean("in_stock").notNull().default(true),
   recordedAt: timestamp("recorded_at").notNull().defaultNow(),
 });
 
