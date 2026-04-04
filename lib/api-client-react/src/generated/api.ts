@@ -33,6 +33,7 @@ import type {
   SuccessResponse,
   TrackProductRequest,
   TriggeredAlert,
+  UpdateProductTypeRequest,
   UpdateProductUnitRequest,
   UpdateSchedulerRequest,
 } from "./api.schemas";
@@ -977,6 +978,93 @@ export const useCreateProductType = <
   TContext
 > => {
   return useMutation(getCreateProductTypeMutationOptions(options));
+};
+
+/**
+ * @summary Update a product type's name and/or unit label
+ */
+export const getUpdateProductTypeUrl = (id: number) => {
+  return `/api/product-types/${id}`;
+};
+
+export const updateProductType = async (
+  id: number,
+  updateProductTypeRequest: UpdateProductTypeRequest,
+  options?: RequestInit,
+): Promise<ProductType> => {
+  return customFetch<ProductType>(getUpdateProductTypeUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateProductTypeRequest),
+  });
+};
+
+export const getUpdateProductTypeMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateProductType>>,
+    TError,
+    { id: number; data: BodyType<UpdateProductTypeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateProductType>>,
+  TError,
+  { id: number; data: BodyType<UpdateProductTypeRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateProductType"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateProductType>>,
+    { id: number; data: BodyType<UpdateProductTypeRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateProductType(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateProductTypeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateProductType>>
+>;
+export type UpdateProductTypeMutationBody = BodyType<UpdateProductTypeRequest>;
+export type UpdateProductTypeMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a product type's name and/or unit label
+ */
+export const useUpdateProductType = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateProductType>>,
+    TError,
+    { id: number; data: BodyType<UpdateProductTypeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateProductType>>,
+  TError,
+  { id: number; data: BodyType<UpdateProductTypeRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateProductTypeMutationOptions(options));
 };
 
 /**

@@ -236,6 +236,9 @@ export const GetProductResponse = zod
             .describe(
               "All promotion texts at time of recording (always present, may be empty)",
             ),
+          inStock: zod
+            .boolean()
+            .describe("Whether the product was in stock at time of recording"),
           recordedAt: zod.date(),
         }),
       ),
@@ -432,6 +435,29 @@ export const GetProductTypesResponse = zod.array(GetProductTypesResponseItem);
 export const CreateProductTypeBody = zod.object({
   name: zod.string(),
   unitLabel: zod.string(),
+});
+
+/**
+ * @summary Update a product type's name and/or unit label
+ */
+export const UpdateProductTypeParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateProductTypeBody = zod.object({
+  name: zod.string().optional(),
+  unitLabel: zod.string().optional(),
+});
+
+export const UpdateProductTypeResponse = zod.object({
+  id: zod.number(),
+  name: zod
+    .string()
+    .describe('Human label for this category, e.g. \"Adult Mouthwash\"'),
+  unitLabel: zod
+    .string()
+    .describe('Unit to measure by, e.g. \"ml\", \"g\", \"tablet\", \"pack\"'),
+  createdAt: zod.date(),
 });
 
 /**

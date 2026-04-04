@@ -23,5 +23,6 @@ export * from "./searchResult";
 export * from "./successResponse";
 export * from "./trackProductRequest";
 export * from "./triggeredAlert";
+export * from "./updateProductTypeRequest";
 export * from "./updateProductUnitRequest";
 export * from "./updateSchedulerRequest";

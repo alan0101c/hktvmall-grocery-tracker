@@ -23,6 +23,11 @@ export interface CreateProductTypeRequest {
   unitLabel: string;
 }
 
+export interface UpdateProductTypeRequest {
+  name?: string;
+  unitLabel?: string;
+}
+
 export interface Product {
   id: number;
   name: string;

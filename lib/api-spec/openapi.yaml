@@ -236,6 +236,29 @@ paths:
                 $ref: "#/components/schemas/ProductType"
 
   /product-types/{id}:
+    patch:
+      operationId: updateProductType
+      tags: [product-types]
+      summary: Update a product type's name and/or unit label
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProductTypeRequest"
+      responses:
+        "200":
+          description: Updated product type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductType"
     delete:
       operationId: deleteProductType
       tags: [product-types]
@@ -383,6 +406,14 @@ components:
         unitLabel:
           type: string
       required: [name, unitLabel]
+
+    UpdateProductTypeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        unitLabel:
+          type: string
 
     Product:
       type: object
