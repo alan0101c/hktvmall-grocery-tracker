@@ -10,6 +10,7 @@ import { AddProductDialog } from "@/components/AddProductDialog";
 import { ProductRow } from "@/components/ProductRow";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
 import { SetAlertModal } from "@/components/SetAlertModal";
+import { CategorySidebar, type CategoryStats } from "@/components/CategorySidebar";
 
 function groupProducts(products: Product[]): Map<string, Product[]> {
   const map = new Map<string, Product[]>();
@@ -34,31 +35,79 @@ function groupProducts(products: Product[]): Map<string, Product[]> {
   );
 }
 
+function computeCategoryStats(grouped: Map<string, Product[]>): CategoryStats[] {
+  return [...grouped.entries()].map(([name, group]) => {
+    const hasAlert = group.some((p) => p.isBelowAlert);
+
+    const allHaveUnitPrice = group.every(
+      (p) => p.pricePerUnit != null && p.pricePerUnit > 0 && p.packageUnit
+    );
+    const sharedUnit = allHaveUnitPrice
+      ? group.every((p) => p.packageUnit === group[0].packageUnit)
+        ? group[0].packageUnit!
+        : null
+      : null;
+
+    const prices = allHaveUnitPrice && sharedUnit
+      ? group.map((p) => p.pricePerUnit!)
+      : group.map((p) => p.currentPrice);
+
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+
+    const discountSamples = group
+      .filter((p) => p.originalPrice !== undefined && p.originalPrice > 0)
+      .map((p) => (p.originalPrice! - p.currentPrice) / p.originalPrice!);
+
+    const avgDiscountRatio =
+      discountSamples.length > 0
+        ? discountSamples.reduce((a, b) => a + b, 0) / discountSamples.length
+        : null;
+
+    return { name, count: group.length, minPrice, maxPrice, unit: sharedUnit, avgDiscountRatio, hasAlert };
+  });
+}
+
 export default function ProductsPage() {
   const [search, setSearch] = useState("");
   const [showDropsOnly, setShowDropsOnly] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
   const [alertProduct, setAlertProduct] = useState<Product | null>(null);
 
-  const { data: products = [], isLoading } = useGetProducts({ 
-    search: search || undefined, 
-    belowAlert: showDropsOnly || undefined 
+  const { data: products = [], isLoading } = useGetProducts({
+    search: search || undefined,
+    belowAlert: showDropsOnly || undefined,
   });
-  
+
   const refreshAllMutation = useRefreshAllProducts();
   const queryClient = useQueryClient();
 
   const groupedProducts = useMemo(() => groupProducts(products), [products]);
+  const categoryStats = useMemo(() => computeCategoryStats(groupedProducts), [groupedProducts]);
+
+  const visibleGroups = useMemo(() => {
+    if (!activeCategory) return groupedProducts;
+    const filtered = new Map<string, Product[]>();
+    if (groupedProducts.has(activeCategory)) {
+      filtered.set(activeCategory, groupedProducts.get(activeCategory)!);
+    }
+    return filtered;
+  }, [groupedProducts, activeCategory]);
 
   const handleRefreshAll = () => {
     refreshAllMutation.mutate(undefined, {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetProductsQueryKey() })
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetProductsQueryKey() }),
     });
   };
 
+  const handleSelectCategory = (cat: string | null) => {
+    setActiveCategory(cat);
+  };
+
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 pb-24">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 pb-24">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
@@ -66,7 +115,7 @@ export default function ProductsPage() {
           <p className="text-muted-foreground mt-1">Track specific HKTVMall items and get alerted on price drops.</p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          <button 
+          <button
             onClick={handleRefreshAll}
             disabled={refreshAllMutation.isPending}
             className="px-4 py-2.5 bg-secondary text-secondary-foreground rounded-xl font-semibold hover:bg-secondary/80 transition-colors flex items-center justify-center gap-2 flex-1 sm:flex-none disabled:opacity-50"
@@ -74,7 +123,7 @@ export default function ProductsPage() {
             <RefreshCw className={cn("w-4 h-4", refreshAllMutation.isPending && "animate-spin")} />
             <span className="hidden sm:inline">Refresh All</span>
           </button>
-          <button 
+          <button
             onClick={() => setIsAddOpen(true)}
             className="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90 shadow-lg shadow-primary/25 hover:-translate-y-0.5 hover:shadow-xl transition-all flex items-center justify-center gap-2 flex-1 sm:flex-none"
           >
@@ -86,117 +135,172 @@ export default function ProductsPage() {
 
       <SchedulerSettings />
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6 bg-card border border-border/60 p-2 rounded-2xl shadow-sm">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search watchlist..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-transparent focus:outline-none text-sm font-medium placeholder:font-normal"
-          />
-        </div>
-        <div className="w-px bg-border hidden sm:block mx-1 my-2" />
-        <button
-          onClick={() => setShowDropsOnly(!showDropsOnly)}
-          className={cn(
-            "px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors",
-            showDropsOnly ? "bg-primary/10 text-primary" : "bg-transparent text-muted-foreground hover:bg-muted"
+      {/* Two-column layout: sidebar + content */}
+      <div className="flex gap-6 items-start mt-6">
+        {/* Desktop sidebar */}
+        {products.length > 0 && (
+          <aside className="hidden lg:block w-56 shrink-0 sticky top-6">
+            <div className="bg-card border border-border/60 rounded-2xl shadow-sm p-2">
+              <CategorySidebar
+                stats={categoryStats}
+                activeCategory={activeCategory}
+                onSelect={handleSelectCategory}
+                totalCount={products.length}
+                variant="sidebar"
+              />
+            </div>
+          </aside>
+        )}
+
+        {/* Main content column */}
+        <div className="flex-1 min-w-0">
+          {/* Mobile chip strip */}
+          {products.length > 0 && (
+            <div className="lg:hidden mb-4">
+              <CategorySidebar
+                stats={categoryStats}
+                activeCategory={activeCategory}
+                onSelect={handleSelectCategory}
+                totalCount={products.length}
+                variant="chips"
+              />
+            </div>
           )}
-        >
-          <Filter className="w-4 h-4" />
-          Drops Only
-        </button>
-      </div>
 
-      {/* Product List */}
-      {isLoading ? (
-        <div className="py-20 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-      ) : products.length > 0 ? (
-        <div className="flex flex-col gap-8">
-          {[...groupedProducts.entries()].map(([category, group]) => {
-            const hasAlert = group.some((p) => p.isBelowAlert);
-            const hasDrop = !hasAlert && group.some(
-              (p) => p.originalPrice !== undefined && p.originalPrice > p.currentPrice
-            );
-
-            return (
-              <div key={category}>
-                {/* Category header */}
-                <div className="flex items-center gap-2 mb-3 px-1">
-                  <span
-                    className={cn(
-                      "text-xs font-bold tracking-widest uppercase",
-                      hasAlert ? "text-destructive" : hasDrop ? "text-amber-600" : "text-muted-foreground"
-                    )}
-                  >
-                    {category}
-                  </span>
-                  <span
-                    className={cn(
-                      "text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
-                      hasAlert
-                        ? "bg-destructive/10 text-destructive"
-                        : hasDrop
-                        ? "bg-amber-50 border border-amber-200 text-amber-600"
-                        : "bg-muted text-muted-foreground"
-                    )}
-                  >
-                    {group.length}
-                  </span>
-                  <div
-                    className={cn(
-                      "flex-1 h-px",
-                      hasAlert ? "bg-destructive/25" : hasDrop ? "bg-amber-200" : "bg-border"
-                    )}
-                  />
-                  {hasAlert && <Bell className="w-3.5 h-3.5 text-destructive shrink-0" />}
-                  {hasDrop && <TrendingDown className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
-                </div>
-
-                {/* Products in this category */}
-                <div className="flex flex-col gap-3">
-                  {group.map((product) => (
-                    <ProductRow
-                      key={product.id}
-                      product={product}
-                      onClick={() => setSelectedProductId(product.id)}
-                      onSetAlert={(e) => { e.stopPropagation(); setAlertProduct(product); }}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="py-24 flex flex-col items-center justify-center text-center px-4 bg-card border border-border/50 border-dashed rounded-3xl">
-          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-4">
-            <PackageOpen className="w-8 h-8 text-primary" />
-          </div>
-          <h3 className="text-xl font-bold text-foreground mb-2">Watchlist is empty</h3>
-          <p className="text-muted-foreground max-w-md">
-            {search || showDropsOnly 
-              ? "No products match your current filters." 
-              : "Add your first product from HKTVMall to start tracking its price automatically."}
-          </p>
-          {!(search || showDropsOnly) && (
-            <button 
-              onClick={() => setIsAddOpen(true)}
-              className="mt-6 px-6 py-3 bg-secondary text-secondary-foreground font-semibold rounded-xl hover:bg-secondary/80 transition-colors"
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-3 mb-6 bg-card border border-border/60 p-2 rounded-2xl shadow-sm">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search watchlist..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-transparent focus:outline-none text-sm font-medium placeholder:font-normal"
+              />
+            </div>
+            <div className="w-px bg-border hidden sm:block mx-1 my-2" />
+            <button
+              onClick={() => setShowDropsOnly(!showDropsOnly)}
+              className={cn(
+                "px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors",
+                showDropsOnly ? "bg-primary/10 text-primary" : "bg-transparent text-muted-foreground hover:bg-muted"
+              )}
             >
-              Add Product
+              <Filter className="w-4 h-4" />
+              Drops Only
             </button>
+          </div>
+
+          {/* Product List */}
+          {isLoading ? (
+            <div className="py-20 flex justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : visibleGroups.size > 0 ? (
+            <div className="flex flex-col gap-8">
+              {[...visibleGroups.entries()].map(([category, group]) => {
+                const hasAlert = group.some((p) => p.isBelowAlert);
+                const hasDrop =
+                  !hasAlert &&
+                  group.some(
+                    (p) => p.originalPrice !== undefined && p.originalPrice > p.currentPrice
+                  );
+
+                return (
+                  <div key={category}>
+                    {/* Category header */}
+                    <div className="flex items-center gap-2 mb-3 px-1">
+                      <span
+                        className={cn(
+                          "text-xs font-bold tracking-widest uppercase",
+                          hasAlert
+                            ? "text-destructive"
+                            : hasDrop
+                            ? "text-amber-600"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        {category}
+                      </span>
+                      <span
+                        className={cn(
+                          "text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
+                          hasAlert
+                            ? "bg-destructive/10 text-destructive"
+                            : hasDrop
+                            ? "bg-amber-50 border border-amber-200 text-amber-600"
+                            : "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {group.length}
+                      </span>
+                      <div
+                        className={cn(
+                          "flex-1 h-px",
+                          hasAlert
+                            ? "bg-destructive/25"
+                            : hasDrop
+                            ? "bg-amber-200"
+                            : "bg-border"
+                        )}
+                      />
+                      {hasAlert && <Bell className="w-3.5 h-3.5 text-destructive shrink-0" />}
+                      {hasDrop && <TrendingDown className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                    </div>
+
+                    {/* Products */}
+                    <div className="flex flex-col gap-3">
+                      {group.map((product) => (
+                        <ProductRow
+                          key={product.id}
+                          product={product}
+                          onClick={() => setSelectedProductId(product.id)}
+                          onSetAlert={(e) => {
+                            e.stopPropagation();
+                            setAlertProduct(product);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="py-24 flex flex-col items-center justify-center text-center px-4 bg-card border border-border/50 border-dashed rounded-3xl">
+              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-4">
+                <PackageOpen className="w-8 h-8 text-primary" />
+              </div>
+              <h3 className="text-xl font-bold text-foreground mb-2">
+                {activeCategory ? `No items in "${activeCategory}"` : "Watchlist is empty"}
+              </h3>
+              <p className="text-muted-foreground max-w-md">
+                {activeCategory
+                  ? "Try a different category or clear your search filter."
+                  : search || showDropsOnly
+                  ? "No products match your current filters."
+                  : "Add your first product from HKTVMall to start tracking its price automatically."}
+              </p>
+              {!(search || showDropsOnly || activeCategory) && (
+                <button
+                  onClick={() => setIsAddOpen(true)}
+                  className="mt-6 px-6 py-3 bg-secondary text-secondary-foreground font-semibold rounded-xl hover:bg-secondary/80 transition-colors"
+                >
+                  Add Product
+                </button>
+              )}
+            </div>
           )}
         </div>
-      )}
+      </div>
 
       {/* Modals */}
       <AnimatePresence>
         {isAddOpen && <AddProductDialog isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} />}
-        {selectedProductId && <ProductDetailModal productId={selectedProductId} onClose={() => setSelectedProductId(null)} />}
+        {selectedProductId && (
+          <ProductDetailModal productId={selectedProductId} onClose={() => setSelectedProductId(null)} />
+        )}
         {alertProduct && <SetAlertModal product={alertProduct} onClose={() => setAlertProduct(null)} />}
       </AnimatePresence>
     </div>

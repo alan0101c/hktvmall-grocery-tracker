@@ -2,11 +2,12 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Search, Link as LinkIcon, Plus, X, Loader2, PackageSearch,
-  Layers, ChevronRight, CheckCircle2, Hash, Beaker,
+  Layers, ChevronRight, CheckCircle2, Hash, Beaker, FolderPlus,
 } from "lucide-react";
 import {
   useSearchHKTVMall, useTrackProduct, useUpdateProductUnit,
-  useGetProductTypes, getGetProductsQueryKey,
+  useGetProductTypes, useCreateProductType,
+  getGetProductsQueryKey, getGetProductTypesQueryKey,
   type Product,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -26,6 +27,7 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
   const [urlInput, setUrlInput] = useState("");
   const [step, setStep] = useState<Step>("find");
   const [justAdded, setJustAdded] = useState<Product | null>(null);
+  const [addedViaSearch, setAddedViaSearch] = useState(false);
 
   // Step 2 fields
   const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null);
@@ -34,6 +36,11 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
   const [unitSize, setUnitSize] = useState("");
   const [itemCount, setItemCount] = useState("");
   const [totalQty, setTotalQty] = useState("");
+
+  // Inline new category creation
+  const [showNewCategoryForm, setShowNewCategoryForm] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryUnit, setNewCategoryUnit] = useState("");
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -44,15 +51,17 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
   const { data: productTypes = [] } = useGetProductTypes();
   const trackMutation = useTrackProduct();
   const updateUnitMutation = useUpdateProductUnit();
+  const createTypeMutation = useCreateProductType();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) performSearch();
   };
 
-  const afterTrack = (product: Product) => {
+  const afterTrack = (product: Product, viaSearch: boolean) => {
     queryClient.invalidateQueries({ queryKey: getGetProductsQueryKey() });
     setJustAdded(product);
+    setAddedViaSearch(viaSearch);
     setStep("configure");
     setSelectedTypeId(null);
     setPackageUnit("");
@@ -69,7 +78,7 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
       { data: { productUrl: urlInput } },
       {
         onSuccess: (product) => {
-          afterTrack(product);
+          afterTrack(product, false);
           setUrlInput("");
         },
         onError: () => {
@@ -83,7 +92,7 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
     trackMutation.mutate(
       { data: { productUrl: url } },
       {
-        onSuccess: (product) => afterTrack(product),
+        onSuccess: (product) => afterTrack(product, true),
       }
     );
   };
@@ -118,7 +127,11 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetProductsQueryKey() });
           toast({ title: "Product added!", description: "Unit pricing configured." });
-          handleClose();
+          if (addedViaSearch) {
+            returnToSearch();
+          } else {
+            handleClose();
+          }
         },
       }
     );
@@ -126,7 +139,27 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
 
   const handleSkipUnit = () => {
     toast({ title: "Product added!", description: "Now tracking price changes." });
-    handleClose();
+    if (addedViaSearch) {
+      returnToSearch();
+    } else {
+      handleClose();
+    }
+  };
+
+  const returnToSearch = () => {
+    setStep("find");
+    setJustAdded(null);
+    setAddedViaSearch(false);
+    setShowNewCategoryForm(false);
+    setNewCategoryName("");
+    setNewCategoryUnit("");
+    setSelectedTypeId(null);
+    setPackageUnit("");
+    setInputMode("total");
+    setUnitSize("");
+    setItemCount("");
+    setTotalQty("");
+    // Keep searchQuery and tab="search" so results remain visible
   };
 
   const handleClose = () => {
@@ -134,9 +167,37 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
     setTimeout(() => {
       setStep("find");
       setJustAdded(null);
+      setAddedViaSearch(false);
       setSearchQuery("");
       setUrlInput("");
+      setShowNewCategoryForm(false);
+      setNewCategoryName("");
+      setNewCategoryUnit("");
     }, 300);
+  };
+
+  const handleCreateCategory = () => {
+    const name = newCategoryName.trim();
+    const unitLabel = newCategoryUnit.trim();
+    if (!name || !unitLabel) return;
+
+    createTypeMutation.mutate(
+      { data: { name, unitLabel } },
+      {
+        onSuccess: (newType) => {
+          queryClient.invalidateQueries({ queryKey: getGetProductTypesQueryKey() });
+          setSelectedTypeId(newType.id);
+          setPackageUnit(newType.unitLabel);
+          setShowNewCategoryForm(false);
+          setNewCategoryName("");
+          setNewCategoryUnit("");
+          toast({ title: "Category created", description: `"${newType.name}" is now selected.` });
+        },
+        onError: () => {
+          toast({ title: "Failed to create category", variant: "destructive" });
+        },
+      }
+    );
   };
 
   const selectedType = productTypes.find((t) => t.id === selectedTypeId) ?? null;
@@ -167,9 +228,19 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
               <p className="text-xs text-muted-foreground mt-0.5">Configure for price-per-unit comparison</p>
             )}
           </div>
-          <button onClick={handleClose} className="p-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted transition-colors">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {step === "configure" && addedViaSearch && (
+              <button
+                onClick={handleClose}
+                className="px-3 py-1.5 text-sm font-semibold text-muted-foreground border border-border rounded-lg hover:bg-muted transition-colors"
+              >
+                Done
+              </button>
+            )}
+            <button onClick={handleClose} className="p-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Step 1: Find product */}
@@ -290,6 +361,18 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
                       ))}
                     </div>
                   </div>
+
+                  {/* Done button when coming back from configure */}
+                  {searchResults && searchResults.length > 0 && (
+                    <div className="flex justify-end pt-1">
+                      <button
+                        onClick={handleClose}
+                        className="px-5 py-2 text-sm font-semibold bg-muted text-muted-foreground rounded-xl hover:bg-muted/70 transition-colors"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -339,12 +422,67 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
                     <div className="text-xs text-muted-foreground">per {type.unitLabel}</div>
                   </button>
                 ))}
-                {productTypes.length === 0 && (
-                  <p className="col-span-full text-xs text-muted-foreground italic">
-                    No categories yet. Create some in the Product Types settings.
-                  </p>
+
+                {/* + New Category button */}
+                {!showNewCategoryForm && (
+                  <button
+                    onClick={() => setShowNewCategoryForm(true)}
+                    className="px-3 py-2 rounded-xl text-sm font-medium border border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all text-left flex items-center gap-1.5"
+                  >
+                    <FolderPlus className="w-3.5 h-3.5 shrink-0" />
+                    <span>New Category</span>
+                  </button>
                 )}
               </div>
+
+              {/* Inline new category form */}
+              {showNewCategoryForm && (
+                <div className="mt-2 p-3 rounded-xl border border-primary/30 bg-primary/5 space-y-3">
+                  <p className="text-xs font-semibold text-foreground">New Category</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="e.g. Shampoo"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      className="flex-1 px-3 py-2 text-sm bg-background border-2 border-border rounded-lg focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all placeholder:text-muted-foreground"
+                    />
+                    <input
+                      type="text"
+                      placeholder="unit (e.g. ml)"
+                      value={newCategoryUnit}
+                      onChange={(e) => setNewCategoryUnit(e.target.value)}
+                      className="w-32 px-3 py-2 text-sm bg-background border-2 border-border rounded-lg focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all placeholder:text-muted-foreground"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleCreateCategory}
+                      disabled={createTypeMutation.isPending || !newCategoryName.trim() || !newCategoryUnit.trim()}
+                      className="flex-1 py-1.5 bg-primary text-primary-foreground rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 disabled:opacity-50 transition-all"
+                    >
+                      {createTypeMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                      {createTypeMutation.isPending ? "Creating..." : "Create & Select"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowNewCategoryForm(false);
+                        setNewCategoryName("");
+                        setNewCategoryUnit("");
+                      }}
+                      className="px-3 py-1.5 rounded-lg text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {productTypes.length === 0 && !showNewCategoryForm && (
+                <p className="text-xs text-muted-foreground italic">
+                  No categories yet. Use "+ New Category" above to create one.
+                </p>
+              )}
             </div>
 
             {/* Package size */}
@@ -458,7 +596,7 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
                 onClick={handleSkipUnit}
                 className="flex-1 py-2.5 bg-muted text-muted-foreground rounded-xl font-semibold hover:bg-muted/70 transition-colors text-sm"
               >
-                Skip for Now
+                {addedViaSearch ? "Skip & Add Another" : "Skip for Now"}
               </button>
               <button
                 onClick={handleSaveUnit}
@@ -466,7 +604,7 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
                 className="flex-1 py-2.5 bg-primary text-primary-foreground rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/25 hover:-translate-y-0.5 disabled:opacity-50 disabled:transform-none transition-all text-sm"
               >
                 {updateUnitMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
-                {updateUnitMutation.isPending ? "Saving..." : "Save & Done"}
+                {updateUnitMutation.isPending ? "Saving..." : (addedViaSearch ? "Save & Add Another" : "Save & Done")}
               </button>
             </div>
           </div>
