@@ -5,6 +5,7 @@ import { eq, ilike, and, or } from "drizzle-orm";
 import { GetProductsQueryParams, TrackProductBody } from "@workspace/api-zod";
 import { scrapeProductByUrl, searchHKTVMall } from "../lib/scraper.js";
 import { refreshProduct, refreshAllProducts } from "../lib/refreshService.js";
+import { getGlobalDiscountPercent, applyDiscount } from "../lib/settings.js";
 
 const router: IRouter = Router();
 
@@ -12,11 +13,13 @@ function buildProductResponse(
   p: typeof productsTable.$inferSelect,
   alertMap: Map<number, number>,
   prevPriceMap?: Map<number, number>,
-  typeNameMap?: Map<number, string>
+  typeNameMap?: Map<number, string>,
+  globalDiscountPercent = 0
 ) {
   const currentPrice = parseFloat(p.currentPrice);
+  const adjustedPrice = applyDiscount(currentPrice, globalDiscountPercent);
   const alertPrice = alertMap.get(p.id) ?? null;
-  const isBelowAlert = alertPrice !== null && currentPrice <= alertPrice;
+  const isBelowAlert = alertPrice !== null && adjustedPrice <= alertPrice;
   const prevPrice = prevPriceMap?.get(p.id);
   const priceChange = prevPrice !== undefined ? currentPrice - prevPrice : null;
 
@@ -25,9 +28,9 @@ function buildProductResponse(
 
   let pricePerUnit: number | null = null;
   if (itemCount !== null && itemCount > 0 && packageQuantity && packageQuantity > 0) {
-    pricePerUnit = Math.round((currentPrice / itemCount) * 10000) / 10000;
+    pricePerUnit = Math.round((adjustedPrice / itemCount) * 10000) / 10000;
   } else if (packageQuantity && packageQuantity > 0) {
-    pricePerUnit = Math.round((currentPrice / packageQuantity) * 10000) / 10000;
+    pricePerUnit = Math.round((adjustedPrice / packageQuantity) * 10000) / 10000;
   }
 
   const promotionTexts: string[] = p.promotionTexts ?? [];
@@ -39,6 +42,8 @@ function buildProductResponse(
     brand: p.brand ?? undefined,
     category: p.category ?? undefined,
     currentPrice,
+    adjustedPrice,
+    globalDiscountPercent,
     originalPrice: p.originalPrice ? parseFloat(p.originalPrice) : undefined,
     plusPrice: p.plusPrice ? parseFloat(p.plusPrice) : null,
     promotionTexts,
@@ -190,8 +195,9 @@ router.post("/track", async (req, res) => {
     const products = await db.select().from(productsTable).where(eq(productsTable.id, productId));
     const alerts = await db.select().from(alertsTable);
     const alertMap = new Map(alerts.map((a) => [a.productId, parseFloat(a.targetPrice)]));
+    const globalDiscountPercent = await getGlobalDiscountPercent();
 
-    res.status(201).json(buildProductResponse(products[0], alertMap));
+    res.status(201).json(buildProductResponse(products[0], alertMap, undefined, undefined, globalDiscountPercent));
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
@@ -248,8 +254,10 @@ router.get("/", async (req, res) => {
       }
     }
 
+    const globalDiscountPercent = await getGlobalDiscountPercent();
+
     const result = products
-      .map((p) => buildProductResponse(p, alertMap, prevPriceMap, typeNameMap))
+      .map((p) => buildProductResponse(p, alertMap, prevPriceMap, typeNameMap, globalDiscountPercent))
       .filter((p) => {
         if (query.belowAlert) return p.isBelowAlert;
         return true;
@@ -283,9 +291,10 @@ router.get("/:id", async (req, res) => {
 
     const allTypes = await db.select().from(productTypesTable);
     const typeNameMap = new Map(allTypes.map((t) => [t.id, t.name]));
+    const globalDiscountPercent = await getGlobalDiscountPercent();
 
     res.json({
-      ...buildProductResponse(p, alertMap, undefined, typeNameMap),
+      ...buildProductResponse(p, alertMap, undefined, typeNameMap, globalDiscountPercent),
       priceHistory: history.map((h) => ({
         id: h.id,
         price: parseFloat(h.price),
@@ -314,8 +323,9 @@ router.post("/:id/refresh", async (req, res) => {
     const products = await db.select().from(productsTable).where(eq(productsTable.id, id));
     const alerts = await db.select().from(alertsTable);
     const alertMap = new Map(alerts.map((a) => [a.productId, parseFloat(a.targetPrice)]));
+    const globalDiscountPercent = await getGlobalDiscountPercent();
 
-    res.json(buildProductResponse(products[0], alertMap));
+    res.json(buildProductResponse(products[0], alertMap, undefined, undefined, globalDiscountPercent));
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
@@ -343,8 +353,9 @@ router.put("/:id/unit", async (req, res) => {
     }
     const alerts = await db.select().from(alertsTable);
     const alertMap = new Map(alerts.map((a) => [a.productId, parseFloat(a.targetPrice)]));
+    const globalDiscountPercent = await getGlobalDiscountPercent();
 
-    res.json(buildProductResponse(products[0], alertMap));
+    res.json(buildProductResponse(products[0], alertMap, undefined, undefined, globalDiscountPercent));
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }

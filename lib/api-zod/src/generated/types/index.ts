@@ -3,10 +3,11 @@
  * Do not edit manually.
  * Api
  * HKTVMall Grocery Price Tracker API
- * OpenAPI spec version: 0.3.0
+ * OpenAPI spec version: 0.4.0
  */
 
 export * from "./alert";
+export * from "./appSettings";
 export * from "./createAlertRequest";
 export * from "./createProductTypeRequest";
 export * from "./errorResponse";
@@ -26,3 +27,4 @@ export * from "./triggeredAlert";
 export * from "./updateProductTypeRequest";
 export * from "./updateProductUnitRequest";
 export * from "./updateSchedulerRequest";
+export * from "./updateSettingsRequest";

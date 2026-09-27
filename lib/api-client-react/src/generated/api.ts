@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * HKTVMall Grocery Price Tracker API
- * OpenAPI spec version: 0.3.0
+ * OpenAPI spec version: 0.4.0
  */
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
@@ -18,6 +18,7 @@ import type {
 
 import type {
   Alert,
+  AppSettings,
   CreateAlertRequest,
   CreateProductTypeRequest,
   ErrorResponse,
@@ -36,6 +37,7 @@ import type {
   UpdateProductTypeRequest,
   UpdateProductUnitRequest,
   UpdateSchedulerRequest,
+  UpdateSettingsRequest,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -1620,4 +1622,165 @@ export const useUpdateScheduler = <
   TContext
 > => {
   return useMutation(getUpdateSchedulerMutationOptions(options));
+};
+
+/**
+ * @summary Get app-wide settings
+ */
+export const getGetAppSettingsUrl = () => {
+  return `/api/settings`;
+};
+
+export const getAppSettings = async (
+  options?: RequestInit,
+): Promise<AppSettings> => {
+  return customFetch<AppSettings>(getGetAppSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAppSettingsQueryKey = () => {
+  return [`/api/settings`] as const;
+};
+
+export const getGetAppSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAppSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAppSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAppSettingsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAppSettings>>> = ({
+    signal,
+  }) => getAppSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAppSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAppSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAppSettings>>
+>;
+export type GetAppSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get app-wide settings
+ */
+
+export function useGetAppSettings<
+  TData = Awaited<ReturnType<typeof getAppSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAppSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAppSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update app-wide settings (global discount adjustment)
+ */
+export const getUpdateAppSettingsUrl = () => {
+  return `/api/settings`;
+};
+
+export const updateAppSettings = async (
+  updateSettingsRequest: UpdateSettingsRequest,
+  options?: RequestInit,
+): Promise<AppSettings> => {
+  return customFetch<AppSettings>(getUpdateAppSettingsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateSettingsRequest),
+  });
+};
+
+export const getUpdateAppSettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAppSettings>>,
+    TError,
+    { data: BodyType<UpdateSettingsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateAppSettings>>,
+  TError,
+  { data: BodyType<UpdateSettingsRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateAppSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateAppSettings>>,
+    { data: BodyType<UpdateSettingsRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateAppSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateAppSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateAppSettings>>
+>;
+export type UpdateAppSettingsMutationBody = BodyType<UpdateSettingsRequest>;
+export type UpdateAppSettingsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update app-wide settings (global discount adjustment)
+ */
+export const useUpdateAppSettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateAppSettings>>,
+    TError,
+    { data: BodyType<UpdateSettingsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateAppSettings>>,
+  TError,
+  { data: BodyType<UpdateSettingsRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateAppSettingsMutationOptions(options));
 };

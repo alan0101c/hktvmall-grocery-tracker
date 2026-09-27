@@ -8,6 +8,7 @@ export interface ScrapedProduct {
   category?: string;
   currentPrice: number;
   originalPrice?: number;
+  /** HKTVmall Plus member price. Plus was cancelled by HKTVmall, so new scrapes always leave this undefined. */
   plusPrice?: number;
   promotionTexts: string[];
   currency: string;
@@ -173,68 +174,53 @@ export async function scrapeProductByUrl(
 
         const isOutOfStock = hasOutOfStockClass || hasOutOfStockText || !addToCartClearlyAvailable;
 
-        let plusPriceStr = "";
-        const plusSelectors = [
-          ".plusPriceSection--bottom span",
-          ".plusPriceSection span:not(.plusPriceSection--top span)",
-          "[class*='plus-price'] span",
-          "[class*='plusPrice'] span",
-          "[class*='member-price'] span",
-          "[class*='memberPrice'] span",
-        ];
-        for (const sel of plusSelectors) {
-          const el = document.querySelector(sel);
-          if (el) {
-            const txt = el.textContent?.trim() || "";
-            if (txt.match(/\$\s*[\d,.]+/)) {
-              plusPriceStr = txt;
-              break;
-            }
-          }
-        }
-
         const promotionTexts: string[] = [];
         const seenPromos = new Set<string>();
+        // Note: deliberately NOT capturing `.threshold-promotion-description`
+        // (duplicates the .promo-name entries glued into one string) or
+        // `.promotionLabel` / `[class*='promotion-tag']` (rotating cross-sell
+        // carousel injected on every product page — causes ever-growing,
+        // unstable label walls). Multi-buy selectors are kept because
+        // "買2件95折"-style promos are real product-level discounts.
         const promoSelectors = [
           ".promo-name",
-          ".threshold-promotion-description",
           ".promoMsg",
           ".multi-buy-promotion",
-          ".promotionLabel",
-          ".promotion-label",
           "[class*='multi-buy']",
           "[class*='multibuy']",
-          "[class*='promotion-tag']",
-          "[class*='promotionTag']",
           "[class*='promo-label']",
           "[class*='promoLabel']",
         ];
         for (const sel of promoSelectors) {
           document.querySelectorAll(sel).forEach((el) => {
-            const txt = el.textContent?.trim() || "";
+            const txt = (el.textContent?.trim() || "").replace(/\s+/g, " ");
             if (txt.length > 0 && txt.length < 200 && !seenPromos.has(txt)) {
               seenPromos.add(txt);
               promotionTexts.push(txt);
             }
           });
         }
+        // Containment dedupe: HKTVMall nests duplicated promo markup, so some
+        // captured strings fully contain another captured string. Keep the
+        // shorter, cleaner text and drop the concatenated duplicates.
+        const cleanedPromoTexts = promotionTexts.filter(
+          (t) => !promotionTexts.some((o) => o !== t && o.length < t.length && t.includes(o))
+        );
 
         return {
           name,
           brand,
           currentPriceStr,
           originalPriceStr,
-          plusPriceStr,
           imageUrl,
           isOutOfStock,
           isSpecialPrice,
-          promotionTexts,
+          promotionTexts: cleanedPromoTexts,
         };
       });
 
       const currentPrice = parsePrice(data.currentPriceStr);
       const originalPrice = parsePrice(data.originalPriceStr);
-      const plusPrice = parsePrice(data.plusPriceStr);
 
       if (!data.name || !currentPrice) return null;
 
@@ -247,7 +233,9 @@ export async function scrapeProductByUrl(
           originalPrice && originalPrice !== currentPrice
             ? originalPrice
             : undefined,
-        plusPrice: plusPrice && plusPrice < currentPrice ? plusPrice : undefined,
+        // HKTVmall cancelled the Plus membership, so new scrapes always
+        // carry no Plus price even if the page still renders the section.
+        plusPrice: undefined,
         promotionTexts: data.promotionTexts,
         currency: "HKD",
         imageUrl: data.imageUrl || undefined,

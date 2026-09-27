@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * HKTVMall Grocery Price Tracker API
- * OpenAPI spec version: 0.3.0
+ * OpenAPI spec version: 0.4.0
  */
 export interface HealthStatus {
   status: string;
@@ -35,8 +35,12 @@ export interface Product {
   brand?: string;
   category?: string;
   currentPrice: number;
+  /** Effective price after the global discount adjustment (equals currentPrice when no discount is set) */
+  adjustedPrice?: number | null;
+  /** The app-wide discount percentage in effect when this response was built (0 = none) */
+  globalDiscountPercent?: number;
   originalPrice?: number;
-  /** HKTVmall Plus member price (lower than currentPrice when available) */
+  /** Deprecated — HKTVmall cancelled the Plus membership. Always null for newly scraped/refreshed products; may still be present on legacy rows. */
   plusPrice?: number | null;
   /** All promotion texts scraped from HKTVMall product page (always present, may be empty) */
   promotionTexts?: string[];
@@ -68,7 +72,7 @@ export interface PriceRecord {
   id: number;
   price: number;
   originalPrice?: number;
-  /** HKTVmall Plus member price at time of recording */
+  /** Deprecated — HKTVmall cancelled the Plus membership. Null for records created after the cancellation. */
   plusPrice?: number | null;
   /** All promotion texts at time of recording (always present, may be empty) */
   promotionTexts?: string[];
@@ -96,6 +100,9 @@ export interface Alert {
   productName: string;
   targetPrice: number;
   currentPrice: number;
+  /** Effective price after the global discount adjustment */
+  adjustedPrice?: number | null;
+  /** Whether the adjusted price is at or below the target price */
   isTriggered: boolean;
   createdAt: string;
 }
@@ -107,7 +114,10 @@ export interface TriggeredAlert {
   productUrl?: string;
   imageUrl?: string;
   currentPrice: number;
+  /** Effective price after the global discount adjustment */
+  adjustedPrice?: number | null;
   targetPrice: number;
+  /** Amount saved versus the adjusted price (targetPrice - adjustedPrice) */
   savings: number;
   currency: string;
 }
@@ -164,6 +174,17 @@ export interface UpdateSchedulerRequest {
 export interface CreateAlertRequest {
   productId: number;
   targetPrice: number;
+}
+
+export interface AppSettings {
+  /** App-wide discount percentage applied on top of listed prices (e.g. 15 for a sitewide 15% off promotion). 0 = no adjustment. */
+  globalDiscountPercent: number;
+  updatedAt?: string;
+}
+
+export interface UpdateSettingsRequest {
+  /** App-wide discount percentage (0–100) */
+  globalDiscountPercent: number;
 }
 
 export interface SuccessResponse {

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Api
-  version: 0.3.0
+  version: 0.4.0
   description: HKTVMall Grocery Price Tracker API
 servers:
   - url: /api
@@ -17,6 +17,8 @@ tags:
     description: Price alert management
   - name: scheduler
     description: Scheduler configuration and status
+  - name: settings
+    description: App-wide settings (e.g. global discount adjustment)
 paths:
   /healthz:
     get:
@@ -373,6 +375,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/SchedulerStatus"
 
+  /settings:
+    get:
+      operationId: getAppSettings
+      tags: [settings]
+      summary: Get app-wide settings
+      responses:
+        "200":
+          description: App settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppSettings"
+    put:
+      operationId: updateAppSettings
+      tags: [settings]
+      summary: Update app-wide settings (global discount adjustment)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettingsRequest"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppSettings"
+
 components:
   schemas:
     HealthStatus:
@@ -430,12 +462,19 @@ components:
           type: string
         currentPrice:
           type: number
+        adjustedPrice:
+          type: number
+          nullable: true
+          description: Effective price after the global discount adjustment (equals currentPrice when no discount is set)
+        globalDiscountPercent:
+          type: number
+          description: The app-wide discount percentage in effect when this response was built (0 = none)
         originalPrice:
           type: number
         plusPrice:
           type: number
           nullable: true
-          description: HKTVmall Plus member price (lower than currentPrice when available)
+          description: Deprecated — HKTVmall cancelled the Plus membership. Always null for newly scraped/refreshed products; may still be present on legacy rows.
         promotionTexts:
           type: array
           items:
@@ -517,7 +556,7 @@ components:
         plusPrice:
           type: number
           nullable: true
-          description: HKTVmall Plus member price at time of recording
+          description: Deprecated — HKTVmall cancelled the Plus membership. Null for records created after the cancellation.
         promotionTexts:
           type: array
           items:
@@ -562,8 +601,13 @@ components:
           type: number
         currentPrice:
           type: number
+        adjustedPrice:
+          type: number
+          nullable: true
+          description: Effective price after the global discount adjustment
         isTriggered:
           type: boolean
+          description: Whether the adjusted price is at or below the target price
         createdAt:
           type: string
           format: date-time
@@ -584,10 +628,15 @@ components:
           type: string
         currentPrice:
           type: number
+        adjustedPrice:
+          type: number
+          nullable: true
+          description: Effective price after the global discount adjustment
         targetPrice:
           type: number
         savings:
           type: number
+          description: Amount saved versus the adjusted price (targetPrice - adjustedPrice)
         currency:
           type: string
       required: [alertId, productId, productName, currentPrice, targetPrice, savings, currency]
@@ -695,6 +744,27 @@ components:
         targetPrice:
           type: number
       required: [productId, targetPrice]
+
+    AppSettings:
+      type: object
+      properties:
+        globalDiscountPercent:
+          type: number
+          description: App-wide discount percentage applied on top of listed prices (e.g. 15 for a sitewide 15% off promotion). 0 = no adjustment.
+        updatedAt:
+          type: string
+          format: date-time
+      required: [globalDiscountPercent]
+
+    UpdateSettingsRequest:
+      type: object
+      properties:
+        globalDiscountPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: App-wide discount percentage (0–100)
+      required: [globalDiscountPercent]
 
     SuccessResponse:
       type: object

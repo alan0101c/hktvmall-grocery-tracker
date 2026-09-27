@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * HKTVMall Grocery Price Tracker API
- * OpenAPI spec version: 0.3.0
+ * OpenAPI spec version: 0.4.0
  */
 
 export interface Product {
@@ -13,8 +13,12 @@ export interface Product {
   brand?: string;
   category?: string;
   currentPrice: number;
+  /** Effective price after the global discount adjustment (equals currentPrice when no discount is set) */
+  adjustedPrice?: number | null;
+  /** The app-wide discount percentage in effect when this response was built (0 = none) */
+  globalDiscountPercent?: number;
   originalPrice?: number;
-  /** HKTVmall Plus member price (lower than currentPrice when available) */
+  /** HKTVmall Plus member price. Deprecated: Plus was cancelled by HKTVmall — always undefined for new scrapes, may remain on legacy rows. */
   plusPrice?: number | null;
   /** All promotion texts scraped from HKTVMall product page (always present, may be empty) */
   promotionTexts?: string[];

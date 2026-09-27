@@ -51,7 +51,10 @@ export default function AlertsPage() {
                     <div className="flex-1">
                       <h3 className="font-bold text-lg text-foreground leading-tight mb-1">{alert.productName}</h3>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                        <span className="text-primary font-bold text-base">{formatHKD(alert.currentPrice)}</span>
+                        <span className="text-primary font-bold text-base">{formatHKD(alert.adjustedPrice ?? alert.currentPrice)}</span>
+                        {alert.adjustedPrice != null && alert.adjustedPrice < alert.currentPrice && (
+                          <span className="text-xs text-muted-foreground line-through self-center">{formatHKD(alert.currentPrice)}</span>
+                        )}
                         <span className="text-muted-foreground line-through">Target: {formatHKD(alert.targetPrice)}</span>
                         <span className="flex items-center gap-1 font-semibold text-primary bg-white px-2 py-0.5 rounded-md border border-primary/20 shadow-sm">
                           <ArrowDownRight className="w-3 h-3" /> Save {formatHKD(alert.savings)}
@@ -99,7 +102,12 @@ export default function AlertsPage() {
                         <div className="flex items-center gap-3 mt-1 text-sm">
                           <span className="font-medium text-muted-foreground">Target: <span className="text-foreground">{formatHKD(alert.targetPrice)}</span></span>
                           <span className="text-border">•</span>
-                          <span className="text-muted-foreground">Current: {formatHKD(alert.currentPrice)}</span>
+                          <span className="text-muted-foreground">
+                            Current: {formatHKD(alert.adjustedPrice ?? alert.currentPrice)}
+                            {alert.adjustedPrice != null && alert.adjustedPrice < alert.currentPrice && (
+                              <span className="line-through ml-1.5">{formatHKD(alert.currentPrice)}</span>
+                            )}
+                          </span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-2">Created {formatDistanceToNow(new Date(alert.createdAt))} ago</p>
                       </div>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trash2, Bell, RefreshCw, TrendingDown, TrendingUp, ExternalLink, Tag, Scale, X, Check, Loader2, Hash, Beaker, Crown, Layers } from "lucide-react";
+import { Trash2, Bell, RefreshCw, TrendingDown, TrendingUp, ExternalLink, Tag, Scale, X, Check, Loader2, Hash, Beaker, Crown, Layers, BadgePercent } from "lucide-react";
 import {
   type Product,
   useDeleteProduct,
@@ -110,9 +110,13 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
     );
   };
 
-  const hasDiscount = product.originalPrice && product.currentPrice < product.originalPrice;
+  const displayPrice = product.adjustedPrice ?? product.currentPrice;
+  const globalDiscountPercent = product.globalDiscountPercent ?? 0;
+  const hasGlobalDiscount = globalDiscountPercent > 0 && displayPrice < product.currentPrice;
+
+  const hasDiscount = product.originalPrice && displayPrice < product.originalPrice;
   const discountPercent = hasDiscount
-    ? Math.round(((product.originalPrice! - product.currentPrice) / product.originalPrice!) * 100)
+    ? Math.round(((product.originalPrice! - displayPrice) / product.originalPrice!) * 100)
     : 0;
 
   const promoList: string[] = product.promotionTexts ?? [];
@@ -130,10 +134,10 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
   const previewPricePerUnit = (() => {
     if (inputMode === "perItem") {
       const cnt = parseInt(itemCount);
-      if (!isNaN(cnt) && cnt > 0) return product.currentPrice / cnt;
+      if (!isNaN(cnt) && cnt > 0) return displayPrice / cnt;
     } else {
       const tot = parseFloat(totalQty);
-      if (!isNaN(tot) && tot > 0) return product.currentPrice / tot;
+      if (!isNaN(tot) && tot > 0) return displayPrice / tot;
     }
     return null;
   })();
@@ -208,9 +212,18 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
                 </>
               ) : (
                 <>
-                  <span className="text-xl font-bold text-foreground">{formatHKD(product.currentPrice)}</span>
+                  <span className="text-xl font-bold text-foreground">{formatHKD(displayPrice)}</span>
+                  {hasGlobalDiscount && (
+                    <span className="text-xs text-muted-foreground line-through">{formatHKD(product.currentPrice)}</span>
+                  )}
                   {hasDiscount && (
-                    <span className="text-xs text-muted-foreground line-through">{formatHKD(product.originalPrice)}</span>
+                    <span className="text-[10px] text-muted-foreground/60 line-through">{formatHKD(product.originalPrice)}</span>
+                  )}
+                  {hasGlobalDiscount && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-md">
+                      <BadgePercent className="w-3 h-3" />
+                      -{globalDiscountPercent}%
+                    </span>
                   )}
                 </>
               )}

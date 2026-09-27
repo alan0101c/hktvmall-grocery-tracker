@@ -6,14 +6,14 @@ import { AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 import { SchedulerSettings } from "@/components/SchedulerSettings";
+import { GlobalDiscountSettings } from "@/components/GlobalDiscountSettings";
 import { AddProductDialog } from "@/components/AddProductDialog";
 import { ProductRow } from "@/components/ProductRow";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
 import { SetAlertModal } from "@/components/SetAlertModal";
 import { CategorySidebar, type CategoryStats } from "@/components/CategorySidebar";
 
-function groupProducts(products: Product[]): Map<string, Product[]> {
-  const map = new Map<string, Product[]>();
+function groupProducts(products: Product[]): Map<string, Product[]> {  const map = new Map<string, Product[]>();
   for (const p of products) {
     const key = p.productTypeName ?? p.category ?? "Uncategorised";
     if (!map.has(key)) map.set(key, []);
@@ -35,6 +35,11 @@ function groupProducts(products: Product[]): Map<string, Product[]> {
   );
 }
 
+/** The price the user actually pays: listed price with the global discount applied (if any). */
+export function effectivePrice(p: Product): number {
+  return p.adjustedPrice ?? p.currentPrice;
+}
+
 function computeCategoryStats(grouped: Map<string, Product[]>): CategoryStats[] {
   return [...grouped.entries()].map(([name, group]) => {
     const hasAlert = group.some((p) => p.isBelowAlert);
@@ -50,14 +55,14 @@ function computeCategoryStats(grouped: Map<string, Product[]>): CategoryStats[] 
 
     const prices = allHaveUnitPrice && sharedUnit
       ? group.map((p) => p.pricePerUnit!)
-      : group.map((p) => p.currentPrice);
+      : group.map((p) => effectivePrice(p));
 
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
 
     const discountSamples = group
       .filter((p) => p.originalPrice !== undefined && p.originalPrice > 0)
-      .map((p) => (p.originalPrice! - p.currentPrice) / p.originalPrice!);
+      .map((p) => (p.originalPrice! - effectivePrice(p)) / p.originalPrice!);
 
     const avgDiscountRatio =
       discountSamples.length > 0
@@ -133,7 +138,10 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      <SchedulerSettings />
+      <div className="grid gap-4 lg:grid-cols-2 mb-8">
+        <SchedulerSettings />
+        <GlobalDiscountSettings />
+      </div>
 
       {/* Two-column layout: sidebar + content */}
       <div className="flex gap-6 items-start mt-6">
@@ -204,7 +212,7 @@ export default function ProductsPage() {
                 const hasDrop =
                   !hasAlert &&
                   group.some(
-                    (p) => p.originalPrice !== undefined && p.originalPrice > p.currentPrice
+                    (p) => p.originalPrice !== undefined && p.originalPrice > effectivePrice(p)
                   );
 
                 return (

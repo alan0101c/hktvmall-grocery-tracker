@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * HKTVMall Grocery Price Tracker API
- * OpenAPI spec version: 0.3.0
+ * OpenAPI spec version: 0.4.0
  */
 import * as zod from "zod";
 
@@ -35,12 +35,24 @@ export const GetProductsResponseItem = zod.object({
   brand: zod.string().optional(),
   category: zod.string().optional(),
   currentPrice: zod.number(),
+  adjustedPrice: zod
+    .number()
+    .nullish()
+    .describe(
+      "Effective price after the global discount adjustment (equals currentPrice when no discount is set)",
+    ),
+  globalDiscountPercent: zod
+    .number()
+    .optional()
+    .describe(
+      "The app-wide discount percentage in effect when this response was built (0 = none)",
+    ),
   originalPrice: zod.number().optional(),
   plusPrice: zod
     .number()
     .nullish()
     .describe(
-      "HKTVmall Plus member price (lower than currentPrice when available)",
+      "Deprecated — HKTVmall cancelled the Plus membership. Always null for newly scraped\/refreshed products; may still be present on legacy rows.",
     ),
   promotionTexts: zod
     .array(zod.string())
@@ -129,6 +141,18 @@ export const SearchHKTVMallResponseItem = zod.object({
   nameZh: zod.string().optional(),
   brand: zod.string().optional(),
   currentPrice: zod.number(),
+  adjustedPrice: zod
+    .number()
+    .nullish()
+    .describe(
+      "Effective price after the global discount adjustment (equals currentPrice when no discount is set)",
+    ),
+  globalDiscountPercent: zod
+    .number()
+    .optional()
+    .describe(
+      "The app-wide discount percentage in effect when this response was built (0 = none)",
+    ),
   originalPrice: zod.number().optional(),
   currency: zod.string(),
   imageUrl: zod.string().optional(),
@@ -168,7 +192,7 @@ export const GetProductResponse = zod
       .number()
       .nullish()
       .describe(
-        "HKTVmall Plus member price (lower than currentPrice when available)",
+        "Deprecated — HKTVmall cancelled the Plus membership. Always null for newly scraped\/refreshed products; may still be present on legacy rows.",
       ),
     promotionTexts: zod
       .array(zod.string())
@@ -229,7 +253,9 @@ export const GetProductResponse = zod
           plusPrice: zod
             .number()
             .nullish()
-            .describe("HKTVmall Plus member price at time of recording"),
+            .describe(
+              "Deprecated — HKTVmall cancelled the Plus membership. Null for records created after the cancellation.",
+            ),
           promotionTexts: zod
             .array(zod.string())
             .optional()
@@ -271,12 +297,24 @@ export const RefreshProductResponse = zod.object({
   brand: zod.string().optional(),
   category: zod.string().optional(),
   currentPrice: zod.number(),
+  adjustedPrice: zod
+    .number()
+    .nullish()
+    .describe(
+      "Effective price after the global discount adjustment (equals currentPrice when no discount is set)",
+    ),
+  globalDiscountPercent: zod
+    .number()
+    .optional()
+    .describe(
+      "The app-wide discount percentage in effect when this response was built (0 = none)",
+    ),
   originalPrice: zod.number().optional(),
   plusPrice: zod
     .number()
     .nullish()
     .describe(
-      "HKTVmall Plus member price (lower than currentPrice when available)",
+      "Deprecated — HKTVmall cancelled the Plus membership. Always null for newly scraped\/refreshed products; may still be present on legacy rows.",
     ),
   promotionTexts: zod
     .array(zod.string())
@@ -357,12 +395,24 @@ export const UpdateProductUnitResponse = zod.object({
   brand: zod.string().optional(),
   category: zod.string().optional(),
   currentPrice: zod.number(),
+  adjustedPrice: zod
+    .number()
+    .nullish()
+    .describe(
+      "Effective price after the global discount adjustment (equals currentPrice when no discount is set)",
+    ),
+  globalDiscountPercent: zod
+    .number()
+    .optional()
+    .describe(
+      "The app-wide discount percentage in effect when this response was built (0 = none)",
+    ),
   originalPrice: zod.number().optional(),
   plusPrice: zod
     .number()
     .nullish()
     .describe(
-      "HKTVmall Plus member price (lower than currentPrice when available)",
+      "Deprecated — HKTVmall cancelled the Plus membership. Always null for newly scraped\/refreshed products; may still be present on legacy rows.",
     ),
   promotionTexts: zod
     .array(zod.string())
@@ -481,7 +531,13 @@ export const GetAlertsResponseItem = zod.object({
   productName: zod.string(),
   targetPrice: zod.number(),
   currentPrice: zod.number(),
-  isTriggered: zod.boolean(),
+  adjustedPrice: zod
+    .number()
+    .nullish()
+    .describe("Effective price after the global discount adjustment"),
+  isTriggered: zod
+    .boolean()
+    .describe("Whether the adjusted price is at or below the target price"),
   createdAt: zod.date(),
 });
 export const GetAlertsResponse = zod.array(GetAlertsResponseItem);
@@ -516,8 +572,14 @@ export const GetTriggeredAlertsResponseItem = zod.object({
   productUrl: zod.string().optional(),
   imageUrl: zod.string().optional(),
   currentPrice: zod.number(),
+  adjustedPrice: zod
+    .number()
+    .nullish()
+    .describe("Effective price after the global discount adjustment"),
   targetPrice: zod.number(),
-  savings: zod.number(),
+  savings: zod
+    .number()
+    .describe("Amount saved versus the adjusted price (targetPrice - adjustedPrice)"),
   currency: zod.string(),
 });
 export const GetTriggeredAlertsResponse = zod.array(
@@ -551,4 +613,36 @@ export const UpdateSchedulerResponse = zod.object({
   lastRun: zod.date().nullish(),
   nextRun: zod.date().nullish(),
   totalRuns: zod.number(),
+});
+
+/**
+ * @summary Get app-wide settings
+ */
+export const GetAppSettingsResponse = zod.object({
+  globalDiscountPercent: zod
+    .number()
+    .describe(
+      "App-wide discount percentage applied on top of listed prices (e.g. 15 for a sitewide 15% off promotion). 0 = no adjustment.",
+    ),
+  updatedAt: zod.date().optional(),
+});
+
+/**
+ * @summary Update app-wide settings (global discount adjustment)
+ */
+export const UpdateSettingsBody = zod.object({
+  globalDiscountPercent: zod
+    .number()
+    .min(0)
+    .max(100)
+    .describe("App-wide discount percentage (0–100)"),
+});
+
+export const UpdateSettingsResponse = zod.object({
+  globalDiscountPercent: zod
+    .number()
+    .describe(
+      "App-wide discount percentage applied on top of listed prices (e.g. 15 for a sitewide 15% off promotion). 0 = no adjustment.",
+    ),
+  updatedAt: zod.date().optional(),
 });

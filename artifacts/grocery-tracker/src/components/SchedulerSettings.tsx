@@ -38,7 +38,7 @@ export function SchedulerSettings() {
     : "Scheduler paused";
 
   return (
-    <div className="relative mb-8">
+    <div className="relative">
       <div className="bg-card border border-border/60 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-4">
           <div className={cn("p-2.5 rounded-xl flex-shrink-0", scheduler.enabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>

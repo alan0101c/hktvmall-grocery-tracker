@@ -47,10 +47,11 @@ A full-stack grocery price tracking app for HKTVMall (https://www.hktvmall.com/h
 - Discount badge shows % off from original price
 
 ### DB Tables
-- `products` — tracked grocery items with current/original/plus price, brand, category, SKU, promotionTexts (jsonb), etc.
-- `price_history` — price snapshots over time per product (includes plusPrice, promotionTexts)
+- `products` — tracked grocery items with current/original price, brand, category, SKU, promotionTexts (jsonb), etc. (plusPrice column kept but deprecated — HKTVmall cancelled Plus; always null for new scrapes)
+- `price_history` — price snapshots over time per product (includes deprecated plusPrice, promotionTexts)
 - `alerts` — user-set price thresholds per product
 - `product_types` — user-defined categories with unit labels (e.g. "Laundry Detergent" / "ml")
+- `app_settings` — single-row app-wide settings (id=1): `globalDiscountPercent` models sitewide promotions (e.g. 全場85折); displayed prices, unit prices and alert triggers use the adjusted price, scraped data stays untouched
 
 ### API Endpoints (all under /api)
 - `GET /api/products` — list products (supports ?search, ?category, ?belowAlert)
@@ -62,10 +63,12 @@ A full-stack grocery price tracking app for HKTVMall (https://www.hktvmall.com/h
 - `GET /api/alerts/triggered` — alerts where current price <= target
 - `POST /api/scraper/scrape` — scrape HKTVMall { categoryUrl?, maxPages? }
 - `GET /api/scraper/categories` — distinct categories from products
+- `GET /api/settings` — app-wide settings (globalDiscountPercent)
+- `PUT /api/settings` — update global discount { globalDiscountPercent } (0–100)
 
 ### Scraper
 - Located at `artifacts/api-server/src/lib/scraper.ts`
-- **Product pages**: Uses Playwright headless Chromium to render JS-heavy HKTVMall product pages. Extracts name from `og:title`, price from `div.price`/`.pricelabel`, image from `og:image`. Also captures Plus member price from `.plusPriceSection--bottom span` and all promotion texts from `.promo-name`, `.threshold-promotion-description`, `.promoMsg`, etc.
+- **Product pages**: Uses Playwright headless Chromium to render JS-heavy HKTVMall product pages. Extracts name from `og:title`, price from `div.price`/`.pricelabel`, image from `og:image`. Captures product-level promotion texts from `.promo-name`, `.promoMsg`, and multi-buy selectors only — deliberately excluding `.threshold-promotion-description` (duplicated concatenations) and `.promotionLabel`/promotion-tag selectors (rotating cross-sell carousel that made label walls grow), with a containment dedupe as a safety net. (Plus member price parsing was removed — HKTVmall cancelled the membership; the column remains for legacy data.)
 - **Search**: Uses HKTVMall's public Algolia API (app ID `8RN1Y79F02`, index `hktvProduct`) for fast keyword search — no browser needed.
 - **Browser singleton**: A single Chromium instance is reused across scrape calls; gracefully closed on SIGTERM/SIGINT.
 - **System dep**: Chromium installed via Nix (`installSystemDependencies`). The scraper resolves the path at runtime via `which chromium`. For custom paths, set `CHROMIUM_PATH` env var.

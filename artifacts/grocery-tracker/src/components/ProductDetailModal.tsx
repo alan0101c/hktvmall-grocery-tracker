@@ -88,7 +88,11 @@ export function ProductDetailModal({ productId, onClose }: ProductDetailModalPro
   }
   const historicalLow = allPrices.length > 0 ? Math.min(...allPrices) : null;
 
-  const effectivePrice = product?.plusPrice != null ? product.plusPrice : product?.currentPrice ?? null;
+  // HKTVmall Plus was cancelled; legacy rows may still carry a plusPrice,
+  // but it must never be preferred over the real current price.
+  const effectivePrice = product?.adjustedPrice ?? product?.currentPrice ?? null;
+
+  const globalDiscountPercent = product?.globalDiscountPercent ?? 0;
 
   let gapPercent: number | null = null;
   let gapLabel: string | null = null;
@@ -142,6 +146,11 @@ export function ProductDetailModal({ productId, onClose }: ProductDetailModalPro
                   <p className="text-2xl font-bold text-primary">{formatHKD(displayCurrentPrice ?? product.currentPrice)}</p>
                   {product.plusPrice != null && (
                     <p className="text-xs text-[#00b050] font-medium mt-1">Plus: {formatHKD(product.plusPrice)}</p>
+                  )}
+                  {globalDiscountPercent > 0 && product.adjustedPrice != null && (
+                    <p className="text-xs text-amber-600 font-medium mt-1">
+                      全場 -{globalDiscountPercent}% applied (listed: {formatHKD(product.currentPrice)})
+                    </p>
                   )}
                 </div>
                 <div className="bg-muted/50 p-4 rounded-2xl border border-border/50">

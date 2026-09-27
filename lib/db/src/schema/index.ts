@@ -19,3 +19,4 @@
 
 export * from "./products";
 export * from "./scheduler";
+export * from "./settings";

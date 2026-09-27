@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * HKTVMall Grocery Price Tracker API
- * OpenAPI spec version: 0.3.0
+ * OpenAPI spec version: 0.4.0
  */
 
 export interface Alert {
@@ -12,6 +12,9 @@ export interface Alert {
   productName: string;
   targetPrice: number;
   currentPrice: number;
+  /** Effective price after the global discount adjustment */
+  adjustedPrice?: number | null;
+  /** Whether the adjusted price is at or below the target price */
   isTriggered: boolean;
   createdAt: Date;
 }

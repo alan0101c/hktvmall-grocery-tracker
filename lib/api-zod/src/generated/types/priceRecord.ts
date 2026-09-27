@@ -3,14 +3,14 @@
  * Do not edit manually.
  * Api
  * HKTVMall Grocery Price Tracker API
- * OpenAPI spec version: 0.3.0
+ * OpenAPI spec version: 0.4.0
  */
 
 export interface PriceRecord {
   id: number;
   price: number;
   originalPrice?: number;
-  /** HKTVmall Plus member price at time of recording */
+  /** Deprecated — HKTVmall cancelled the Plus membership. Null for records created after the cancellation. */
   plusPrice?: number | null;
   /** All promotion texts at time of recording (always present, may be empty) */
   promotionTexts?: string[];
