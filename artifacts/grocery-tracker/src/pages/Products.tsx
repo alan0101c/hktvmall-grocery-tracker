@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Search, Filter, Loader2, PackageOpen, RefreshCw, Bell, TrendingDown } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 import { SchedulerSettings } from "@/components/SchedulerSettings";
 import { GlobalDiscountSettings } from "@/components/GlobalDiscountSettings";
@@ -21,8 +22,15 @@ function groupProducts(products: Product[]): Map<string, Product[]> {  const map
   }
   for (const group of map.values()) {
     group.sort((a, b) => {
+      // Alert-hit products stay pinned at the top, then cheapest per-item
+      // cost first. Products without a unit price go last, sorted by name.
       if (a.isBelowAlert && !b.isBelowAlert) return -1;
       if (!a.isBelowAlert && b.isBelowAlert) return 1;
+      const aUnit = a.pricePerUnit;
+      const bUnit = b.pricePerUnit;
+      if (aUnit != null && bUnit != null && aUnit !== bUnit) return aUnit - bUnit;
+      if (aUnit != null && bUnit == null) return -1;
+      if (aUnit == null && bUnit != null) return 1;
       return a.name.localeCompare(b.name);
     });
   }
@@ -88,6 +96,7 @@ export default function ProductsPage() {
 
   const refreshAllMutation = useRefreshAllProducts();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const groupedProducts = useMemo(() => groupProducts(products), [products]);
   const categoryStats = useMemo(() => computeCategoryStats(groupedProducts), [groupedProducts]);
@@ -103,7 +112,26 @@ export default function ProductsPage() {
 
   const handleRefreshAll = () => {
     refreshAllMutation.mutate(undefined, {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetProductsQueryKey() }),
+      onSuccess: (result) => {
+        queryClient.invalidateQueries({ queryKey: getGetProductsQueryKey() });
+        const parts = [`${result.refreshed} refreshed`];
+        if (result.priceDrops > 0) parts.push(`${result.priceDrops} price drop${result.priceDrops > 1 ? "s" : ""}`);
+        if (result.failed > 0) parts.push(`${result.failed} failed`);
+        toast({
+          title: "Refresh complete",
+          description: parts.join(" · "),
+          variant: result.failed > 0 ? "destructive" : "default",
+        });
+        if (result.unavailable > 0) {
+          toast({
+            title: `${result.unavailable} product${result.unavailable > 1 ? "s are" : " is"} no longer available on HKTVmall`,
+            description: "Marked as unavailable — records and price history are kept.",
+          });
+        }
+      },
+      onError: (err) => {
+        toast({ title: "Refresh failed", description: err.message, variant: "destructive" });
+      },
     });
   };
 

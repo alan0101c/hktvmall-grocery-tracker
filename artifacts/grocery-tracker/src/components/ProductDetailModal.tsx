@@ -173,9 +173,20 @@ export function ProductDetailModal({ productId, onClose }: ProductDetailModalPro
                 </div>
                 <div className="bg-muted/50 p-4 rounded-2xl border border-border/50">
                   <p className="text-sm text-muted-foreground font-medium mb-1">Status</p>
-                  <p className="text-xl font-bold">{product.inStock ? "In Stock" : "Out of Stock"}</p>
+                  {product.status === "unavailable" ? (
+                    <p className="text-xl font-bold text-destructive">No longer available</p>
+                  ) : (
+                    <p className="text-xl font-bold">{product.inStock ? "In Stock" : "Out of Stock"}</p>
+                  )}
                 </div>
               </div>
+
+              {product.status === "unavailable" && (
+                <p className="text-xs text-destructive/80 bg-destructive/5 border border-destructive/20 rounded-xl px-4 py-2.5 mb-6">
+                  This product could not be found on HKTVmall during the last refresh and may have been
+                  delisted. The record and price history below are kept for reference.
+                </p>
+              )}
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">

@@ -3,8 +3,9 @@
  * Do not edit manually.
  * Api
  * HKTVMall Grocery Price Tracker API
- * OpenAPI spec version: 0.4.0
+ * OpenAPI spec version: 0.5.0
  */
+import type { ProductStatus } from "./productStatus";
 
 export interface Product {
   id: number;
@@ -18,7 +19,7 @@ export interface Product {
   /** The app-wide discount percentage in effect when this response was built (0 = none) */
   globalDiscountPercent?: number;
   originalPrice?: number;
-  /** HKTVmall Plus member price. Deprecated: Plus was cancelled by HKTVmall — always undefined for new scrapes, may remain on legacy rows. */
+  /** Deprecated — HKTVmall cancelled the Plus membership. Always null for newly scraped/refreshed products; may still be present on legacy rows. */
   plusPrice?: number | null;
   /** All promotion texts scraped from HKTVMall product page (always present, may be empty) */
   promotionTexts?: string[];
@@ -31,7 +32,7 @@ export interface Product {
   productTypeId?: number | null;
   /** Size of each natural unit (e.g. 950 for 950ml per bottle) */
   packageQuantity?: number | null;
-  /** Unit for packageQuantity (e.g. ml, g, tablet, pack) */
+  /** The unit used for the unit price — resolved from the product's category (every product in a category shares the same unit), falling back to the unit the quantity was recorded in for uncategorised products. Null when no unit is known. */
   packageUnit?: string | null;
   /** Resolved name of the product type (category) */
   productTypeName?: string;
@@ -44,4 +45,8 @@ export interface Product {
   isBelowAlert: boolean;
   /** Price change since last check (positive = increase, negative = drop) */
   priceChange?: number | null;
+  /** active = listed on HKTVmall; unavailable = product page could no longer be parsed (removed/delisted from HKTVmall). The record and its price history are kept either way. */
+  status?: ProductStatus;
+  /** Message from the last failed refresh attempt, if any. */
+  lastRefreshError?: string | null;
 }

@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * HKTVMall Grocery Price Tracker API
- * OpenAPI spec version: 0.4.0
+ * OpenAPI spec version: 0.5.0
  */
 import * as zod from "zod";
 
@@ -76,7 +76,9 @@ export const GetProductsResponseItem = zod.object({
   packageUnit: zod
     .string()
     .nullish()
-    .describe("Unit for packageQuantity (e.g. ml, g, tablet, pack)"),
+    .describe(
+      "The unit used for the unit price — resolved from the product's category (every product in a category shares the same unit), falling back to the unit the quantity was recorded in for uncategorised products. Null when no unit is known.",
+    ),
   productTypeName: zod
     .string()
     .optional()
@@ -102,6 +104,16 @@ export const GetProductsResponseItem = zod.object({
     .describe(
       "Price change since last check (positive = increase, negative = drop)",
     ),
+  status: zod
+    .enum(["active", "unavailable"])
+    .optional()
+    .describe(
+      "active = listed on HKTVmall; unavailable = product page could no longer be parsed (removed\/delisted from HKTVmall). The record and its price history are kept either way.",
+    ),
+  lastRefreshError: zod
+    .string()
+    .nullish()
+    .describe("Message from the last failed refresh attempt, if any."),
 });
 export const GetProductsResponse = zod.array(GetProductsResponseItem);
 
@@ -118,15 +130,15 @@ export const TrackProductBody = zod.object({
   productTypeId: zod
     .number()
     .nullish()
-    .describe("Optional product type to assign"),
+    .describe(
+      "Optional product type to assign — the product's unit is adopted from the category",
+    ),
   packageQuantity: zod
     .number()
     .nullish()
-    .describe("Package size (e.g. 500 for 500ml)"),
-  packageUnit: zod
-    .string()
-    .nullish()
-    .describe("Unit label (e.g. ml, g, tablet, pack)"),
+    .describe(
+      "Package size (e.g. 500 for 500ml), expressed in the assigned category's unit",
+    ),
 });
 
 /**
@@ -141,18 +153,6 @@ export const SearchHKTVMallResponseItem = zod.object({
   nameZh: zod.string().optional(),
   brand: zod.string().optional(),
   currentPrice: zod.number(),
-  adjustedPrice: zod
-    .number()
-    .nullish()
-    .describe(
-      "Effective price after the global discount adjustment (equals currentPrice when no discount is set)",
-    ),
-  globalDiscountPercent: zod
-    .number()
-    .optional()
-    .describe(
-      "The app-wide discount percentage in effect when this response was built (0 = none)",
-    ),
   originalPrice: zod.number().optional(),
   currency: zod.string(),
   imageUrl: zod.string().optional(),
@@ -168,6 +168,11 @@ export const SearchHKTVMallResponse = zod.array(SearchHKTVMallResponseItem);
 export const RefreshAllProductsResponse = zod.object({
   refreshed: zod.number(),
   failed: zod.number(),
+  unavailable: zod
+    .number()
+    .describe(
+      "Number of products that could not be refreshed because they are no longer listed on HKTVmall (marked unavailable, records kept).",
+    ),
   priceDrops: zod.number(),
   errors: zod.array(zod.string()),
 });
@@ -187,6 +192,18 @@ export const GetProductResponse = zod
     brand: zod.string().optional(),
     category: zod.string().optional(),
     currentPrice: zod.number(),
+    adjustedPrice: zod
+      .number()
+      .nullish()
+      .describe(
+        "Effective price after the global discount adjustment (equals currentPrice when no discount is set)",
+      ),
+    globalDiscountPercent: zod
+      .number()
+      .optional()
+      .describe(
+        "The app-wide discount percentage in effect when this response was built (0 = none)",
+      ),
     originalPrice: zod.number().optional(),
     plusPrice: zod
       .number()
@@ -216,7 +233,9 @@ export const GetProductResponse = zod
     packageUnit: zod
       .string()
       .nullish()
-      .describe("Unit for packageQuantity (e.g. ml, g, tablet, pack)"),
+      .describe(
+        "The unit used for the unit price — resolved from the product's category (every product in a category shares the same unit), falling back to the unit the quantity was recorded in for uncategorised products. Null when no unit is known.",
+      ),
     productTypeName: zod
       .string()
       .optional()
@@ -242,6 +261,16 @@ export const GetProductResponse = zod
       .describe(
         "Price change since last check (positive = increase, negative = drop)",
       ),
+    status: zod
+      .enum(["active", "unavailable"])
+      .optional()
+      .describe(
+        "active = listed on HKTVmall; unavailable = product page could no longer be parsed (removed\/delisted from HKTVmall). The record and its price history are kept either way.",
+      ),
+    lastRefreshError: zod
+      .string()
+      .nullish()
+      .describe("Message from the last failed refresh attempt, if any."),
   })
   .and(
     zod.object({
@@ -338,7 +367,9 @@ export const RefreshProductResponse = zod.object({
   packageUnit: zod
     .string()
     .nullish()
-    .describe("Unit for packageQuantity (e.g. ml, g, tablet, pack)"),
+    .describe(
+      "The unit used for the unit price — resolved from the product's category (every product in a category shares the same unit), falling back to the unit the quantity was recorded in for uncategorised products. Null when no unit is known.",
+    ),
   productTypeName: zod
     .string()
     .optional()
@@ -364,6 +395,16 @@ export const RefreshProductResponse = zod.object({
     .describe(
       "Price change since last check (positive = increase, negative = drop)",
     ),
+  status: zod
+    .enum(["active", "unavailable"])
+    .optional()
+    .describe(
+      "active = listed on HKTVmall; unavailable = product page could no longer be parsed (removed\/delisted from HKTVmall). The record and its price history are kept either way.",
+    ),
+  lastRefreshError: zod
+    .string()
+    .nullish()
+    .describe("Message from the last failed refresh attempt, if any."),
 });
 
 /**
@@ -374,12 +415,18 @@ export const UpdateProductUnitParams = zod.object({
 });
 
 export const UpdateProductUnitBody = zod.object({
-  productTypeId: zod.number().nullish(),
+  productTypeId: zod
+    .number()
+    .nullish()
+    .describe(
+      "Category to assign. The product's unit is adopted from the category and can never be set here.",
+    ),
   packageQuantity: zod
     .number()
     .nullish()
-    .describe("Size of each natural unit (e.g. 950 for 950ml per bottle)"),
-  packageUnit: zod.string().nullish(),
+    .describe(
+      "Size of each natural unit (e.g. 950 for 950ml per bottle), expressed in the category's unit. When the product moves to a category with a different unit, the stored quantity is cleared (quarantined) because it was expressed in the old unit — re-enter it here in the new unit.",
+    ),
   itemCount: zod
     .number()
     .nullish()
@@ -436,7 +483,9 @@ export const UpdateProductUnitResponse = zod.object({
   packageUnit: zod
     .string()
     .nullish()
-    .describe("Unit for packageQuantity (e.g. ml, g, tablet, pack)"),
+    .describe(
+      "The unit used for the unit price — resolved from the product's category (every product in a category shares the same unit), falling back to the unit the quantity was recorded in for uncategorised products. Null when no unit is known.",
+    ),
   productTypeName: zod
     .string()
     .optional()
@@ -462,6 +511,16 @@ export const UpdateProductUnitResponse = zod.object({
     .describe(
       "Price change since last check (positive = increase, negative = drop)",
     ),
+  status: zod
+    .enum(["active", "unavailable"])
+    .optional()
+    .describe(
+      "active = listed on HKTVmall; unavailable = product page could no longer be parsed (removed\/delisted from HKTVmall). The record and its price history are kept either way.",
+    ),
+  lastRefreshError: zod
+    .string()
+    .nullish()
+    .describe("Message from the last failed refresh attempt, if any."),
 });
 
 /**
@@ -496,7 +555,24 @@ export const UpdateProductTypeParams = zod.object({
 
 export const UpdateProductTypeBody = zod.object({
   name: zod.string().optional(),
-  unitLabel: zod.string().optional(),
+  unitLabel: zod
+    .string()
+    .optional()
+    .describe(
+      "New unit for the category, canonicalised to lowercase. Changing the unit (beyond case) redefines what every member quantity means, so it is only accepted together with `listings` re-submitting the reviewed quantities in the new unit. The whole update is applied atomically — category unit, member units, and quantities.",
+    ),
+  listings: zod
+    .array(
+      zod.object({
+        productId: zod.number(),
+        packageQuantity: zod.number().nullish(),
+        itemCount: zod.number().nullish(),
+      }),
+    )
+    .optional()
+    .describe(
+      "Reviewed member quantities, applied in the same transaction as the unit change. Each entry must reference a product that currently belongs to this category.",
+    ),
 });
 
 export const UpdateProductTypeResponse = zod.object({
@@ -579,7 +655,9 @@ export const GetTriggeredAlertsResponseItem = zod.object({
   targetPrice: zod.number(),
   savings: zod
     .number()
-    .describe("Amount saved versus the adjusted price (targetPrice - adjustedPrice)"),
+    .describe(
+      "Amount saved versus the adjusted price (targetPrice - adjustedPrice)",
+    ),
   currency: zod.string(),
 });
 export const GetTriggeredAlertsResponse = zod.array(
@@ -630,15 +708,18 @@ export const GetAppSettingsResponse = zod.object({
 /**
  * @summary Update app-wide settings (global discount adjustment)
  */
-export const UpdateSettingsBody = zod.object({
+export const updateAppSettingsBodyGlobalDiscountPercentMin = 0;
+export const updateAppSettingsBodyGlobalDiscountPercentMax = 100;
+
+export const UpdateAppSettingsBody = zod.object({
   globalDiscountPercent: zod
     .number()
-    .min(0)
-    .max(100)
+    .min(updateAppSettingsBodyGlobalDiscountPercentMin)
+    .max(updateAppSettingsBodyGlobalDiscountPercentMax)
     .describe("App-wide discount percentage (0–100)"),
 });
 
-export const UpdateSettingsResponse = zod.object({
+export const UpdateAppSettingsResponse = zod.object({
   globalDiscountPercent: zod
     .number()
     .describe(

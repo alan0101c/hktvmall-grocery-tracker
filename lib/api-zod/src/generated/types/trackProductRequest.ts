@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * HKTVMall Grocery Price Tracker API
- * OpenAPI spec version: 0.3.0
+ * OpenAPI spec version: 0.5.0
  */
 
 export interface TrackProductRequest {
@@ -13,10 +13,8 @@ export interface TrackProductRequest {
   name?: string;
   /** Optional alert price to set immediately */
   targetPrice?: number;
-  /** Optional product type to assign */
+  /** Optional product type to assign — the product's unit is adopted from the category */
   productTypeId?: number | null;
-  /** Package size (e.g. 500 for 500ml) */
+  /** Package size (e.g. 500 for 500ml), expressed in the assigned category's unit */
   packageQuantity?: number | null;
-  /** Unit label (e.g. ml, g, tablet, pack) */
-  packageUnit?: string | null;
 }

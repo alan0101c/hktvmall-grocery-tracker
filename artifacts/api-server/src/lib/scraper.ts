@@ -1,5 +1,6 @@
 import { chromium, type Browser, type BrowserContext } from "playwright-core";
 import { execSync } from "child_process";
+import { existsSync } from "fs";
 
 export interface ScrapedProduct {
   name: string;
@@ -21,8 +22,47 @@ export interface ScrapedProduct {
 const BASE_URL = "https://www.hktvmall.com";
 const PAGE_TIMEOUT = 15_000;
 
+/**
+ * Thrown when the product page can no longer be parsed because the product
+ * has been removed/delisted from HKTVmall (404, redirect away from the
+ * product path, or a "not found" page with no price markup).
+ * Distinct from transient scrape failures (timeouts, layout changes).
+ */
+export class ProductUnavailableError extends Error {
+  readonly name = "ProductUnavailableError";
+  constructor(productUrl: string, reason: string) {
+    super(`Product no longer available on HKTVmall (${reason}): ${productUrl}`);
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+// Markers that HKTVmall renders on removed/delisted product pages.
+const UNAVAILABLE_TEXT = /product not found|找不到|不存在|已下架|no longer available|page not found|暫停發售/i;
+
 let browserInstance: Browser | null = null;
 let chromiumPath: string | null = null;
+
+// Well-known Chrome/Chromium install locations, checked in order.
+const CHROMIUM_CANDIDATES = [
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser",
+  "/usr/bin/google-chrome",
+  "/usr/bin/google-chrome-stable",
+  "/snap/bin/chromium",
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "/Applications/Chromium.app/Contents/MacOS/Chromium",
+  "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+  "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+];
+
+function which(binary: string): string | null {
+  try {
+    const path = execSync(`which ${binary}`, { encoding: "utf-8" }).trim();
+    return path || null;
+  } catch {
+    return null;
+  }
+}
 
 function getChromiumPath(): string {
   if (chromiumPath) return chromiumPath;
@@ -30,11 +70,21 @@ function getChromiumPath(): string {
     chromiumPath = process.env.CHROMIUM_PATH;
     return chromiumPath;
   }
-  try {
-    chromiumPath = execSync("which chromium", { encoding: "utf-8" }).trim();
-  } catch {
-    chromiumPath = "/usr/bin/chromium";
+  for (const binary of ["chromium", "chromium-browser", "google-chrome", "google-chrome-stable"]) {
+    const found = which(binary);
+    if (found) {
+      chromiumPath = found;
+      return chromiumPath;
+    }
   }
+  for (const candidate of CHROMIUM_CANDIDATES) {
+    if (existsSync(candidate)) {
+      chromiumPath = candidate;
+      return chromiumPath;
+    }
+  }
+  // Last resort — keeps the old error message pointing at the Linux default.
+  chromiumPath = "/usr/bin/chromium";
   return chromiumPath;
 }
 
@@ -98,14 +148,38 @@ export async function scrapeProductByUrl(
   return withPage(async (context) => {
     const page = await context.newPage();
     try {
-      await page.goto(fullUrl, {
+      const response = await page.goto(fullUrl, {
         waitUntil: "domcontentloaded",
         timeout: PAGE_TIMEOUT,
       });
 
-      await page.waitForSelector("div.price, .pricelabel, .priceTypeText", {
-        timeout: PAGE_TIMEOUT,
-      });
+      const status = response?.status() ?? 0;
+      if (status === 404 || status === 410) {
+        throw new ProductUnavailableError(fullUrl, `HTTP ${status}`);
+      }
+
+      // HKTVmall redirects delisted product URLs away from /p/<sku>.
+      const urlPath = (u: string) => { try { return new URL(u).pathname; } catch { return ""; } };
+      if (/\/p\//.test(urlPath(fullUrl)) && !/\/p\//.test(urlPath(page.url()))) {
+        throw new ProductUnavailableError(fullUrl, "redirected away from product page");
+      }
+
+      try {
+        await page.waitForSelector("div.price, .pricelabel, .priceTypeText", {
+          timeout: PAGE_TIMEOUT,
+        });
+      } catch (waitErr) {
+        // Timed out waiting for price markup. If the page says the product
+        // is gone (rather than just slow or changed layout), report it as
+        // unavailable so the tracker can flag it instead of a generic error.
+        const bodyText = await page
+          .evaluate(() => document.body?.innerText?.slice(0, 2000) ?? "")
+          .catch(() => "");
+        if (UNAVAILABLE_TEXT.test(bodyText)) {
+          throw new ProductUnavailableError(fullUrl, "product-not-found page content");
+        }
+        throw waitErr;
+      }
 
       await page.waitForTimeout(2000);
 
@@ -244,6 +318,7 @@ export async function scrapeProductByUrl(
         inStock: !data.isOutOfStock,
       };
     } catch (err) {
+      if (err instanceof ProductUnavailableError) throw err;
       console.error(`Scrape failed for ${fullUrl}:`, err);
       throw new Error(`Failed to scrape ${fullUrl}: ${err}`);
     }

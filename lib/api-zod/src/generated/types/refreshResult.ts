@@ -3,12 +3,14 @@
  * Do not edit manually.
  * Api
  * HKTVMall Grocery Price Tracker API
- * OpenAPI spec version: 0.3.0
+ * OpenAPI spec version: 0.5.0
  */
 
 export interface RefreshResult {
   refreshed: number;
   failed: number;
+  /** Number of products that could not be refreshed because they are no longer listed on HKTVmall (marked unavailable, records kept). */
+  unavailable: number;
   priceDrops: number;
   errors: string[];
 }

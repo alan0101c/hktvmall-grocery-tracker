@@ -1,15 +1,13 @@
-import { useState } from "react";
-import { Trash2, Bell, RefreshCw, TrendingDown, TrendingUp, ExternalLink, Tag, Scale, X, Check, Loader2, Hash, Beaker, Crown, Layers, BadgePercent } from "lucide-react";
+import { Trash2, Bell, RefreshCw, TrendingDown, TrendingUp, ExternalLink, Tag, Loader2, Crown, Layers, BadgePercent, CircleOff, TriangleAlert } from "lucide-react";
 import {
   type Product,
   useDeleteProduct,
   useRefreshProduct,
-  useUpdateProductUnit,
-  useGetProductTypes,
   getGetProductsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn, formatHKD } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 
 interface ProductRowProps {
@@ -18,28 +16,11 @@ interface ProductRowProps {
   onSetAlert: (e: React.MouseEvent) => void;
 }
 
-type InputMode = "total" | "perItem";
-
 export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const deleteMutation = useDeleteProduct();
   const refreshMutation = useRefreshProduct();
-  const updateUnitMutation = useUpdateProductUnit();
-  const { data: productTypes = [] } = useGetProductTypes();
-
-  const [editingUnit, setEditingUnit] = useState(false);
-  const [selectedTypeId, setSelectedTypeId] = useState<number | null>(product.productTypeId ?? null);
-  const [packageUnit, setPackageUnit] = useState(product.packageUnit ?? "");
-
-  // Two modes: "total" = user enters total volume (e.g. 2850ml); "perItem" = user enters unit size × item count (950ml × 3)
-  const [inputMode, setInputMode] = useState<InputMode>(
-    product.itemCount != null ? "perItem" : "total"
-  );
-  const [unitSize, setUnitSize] = useState(product.packageQuantity ? String(product.packageQuantity) : "");
-  const [itemCount, setItemCount] = useState(product.itemCount ? String(product.itemCount) : "");
-  const [totalQty, setTotalQty] = useState(
-    product.itemCount == null && product.packageQuantity ? String(product.packageQuantity) : ""
-  );
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -53,61 +34,18 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
   const handleRefresh = (e: React.MouseEvent) => {
     e.stopPropagation();
     refreshMutation.mutate({ id: product.id }, {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetProductsQueryKey() })
-    });
-  };
-
-  const handleEditUnit = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSelectedTypeId(product.productTypeId ?? null);
-    setPackageUnit(product.packageUnit ?? "");
-    const isPerItem = product.itemCount != null;
-    setInputMode(isPerItem ? "perItem" : "total");
-    setUnitSize(product.packageQuantity ? String(product.packageQuantity) : "");
-    setItemCount(product.itemCount ? String(product.itemCount) : "");
-    setTotalQty(product.itemCount == null && product.packageQuantity ? String(product.packageQuantity) : "");
-    setEditingUnit(true);
-  };
-
-  const handleCancelUnit = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditingUnit(false);
-  };
-
-  const handleSaveUnit = (e: React.MouseEvent) => {
-    e.stopPropagation();
-
-    let packageQuantity: number | null = null;
-    let finalItemCount: number | null = null;
-
-    if (inputMode === "perItem") {
-      const sz = parseFloat(unitSize);
-      const cnt = parseInt(itemCount);
-      packageQuantity = !isNaN(sz) && sz > 0 ? sz : null;
-      finalItemCount = !isNaN(cnt) && cnt > 0 ? cnt : null;
-    } else {
-      const tot = parseFloat(totalQty);
-      packageQuantity = !isNaN(tot) && tot > 0 ? tot : null;
-      finalItemCount = null;
-    }
-
-    updateUnitMutation.mutate(
-      {
-        id: product.id,
-        data: {
-          productTypeId: selectedTypeId,
-          packageQuantity,
-          packageUnit: packageUnit.trim() || null,
-          itemCount: finalItemCount,
-        },
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetProductsQueryKey() }),
+      onError: (err) => {
+        toast({
+          title: product.status === "unavailable" ? "Product no longer available" : "Refresh failed",
+          description: err.message,
+          variant: "destructive",
+        });
+        // Even on failure the backend records the outcome — re-fetch so the
+        // failure status / unavailable flag shows up on the row.
+        queryClient.invalidateQueries({ queryKey: getGetProductsQueryKey() });
       },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getGetProductsQueryKey() });
-          setEditingUnit(false);
-        },
-      }
-    );
+    });
   };
 
   const displayPrice = product.adjustedPrice ?? product.currentPrice;
@@ -130,38 +68,18 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
       : `${formatHKD(product.pricePerUnit!)}/${product.packageUnit}`
     : null;
 
-  // Live preview in the editor
-  const previewPricePerUnit = (() => {
-    if (inputMode === "perItem") {
-      const cnt = parseInt(itemCount);
-      if (!isNaN(cnt) && cnt > 0) return displayPrice / cnt;
-    } else {
-      const tot = parseFloat(totalQty);
-      if (!isNaN(tot) && tot > 0) return displayPrice / tot;
-    }
-    return null;
-  })();
-
-  const previewLabel = (() => {
-    if (previewPricePerUnit === null) return null;
-    if (inputMode === "perItem") {
-      const sz = parseFloat(unitSize);
-      if (!isNaN(sz) && sz > 0 && packageUnit) return `${formatHKD(previewPricePerUnit)} per ${sz}${packageUnit}`;
-      return `${formatHKD(previewPricePerUnit)} per item`;
-    }
-    return `${formatHKD(previewPricePerUnit)}/${packageUnit || "unit"}`;
-  })();
-
   const isOutOfStock = product.inStock === false;
+  const isUnavailable = product.status === "unavailable";
+  const lastRefreshFailed = !isUnavailable && !!product.lastRefreshError;
 
   return (
     <div
-      onClick={editingUnit ? undefined : onClick}
+      onClick={onClick}
       className={cn(
-        "group relative flex flex-col gap-0 bg-card border rounded-2xl transition-all",
-        !editingUnit && "cursor-pointer hover:shadow-lg hover:border-primary/30",
+        "group relative flex flex-col gap-0 bg-card border rounded-2xl transition-all cursor-pointer hover:shadow-lg hover:border-primary/30",
         product.isBelowAlert ? "border-primary/50 bg-primary/5" : "border-border shadow-sm shadow-black/5",
-        isOutOfStock && "opacity-60 border-border/50"
+        (isOutOfStock || isUnavailable) && "opacity-60 border-border/50",
+        isUnavailable && "bg-muted/30"
       )}
     >
       {/* Main row */}
@@ -187,6 +105,15 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
               <h3 className="font-bold text-foreground truncate text-sm sm:text-base leading-tight group-hover:text-primary transition-colors">
                 {product.name}
               </h3>
+              {isUnavailable && (
+                <span
+                  className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 bg-destructive/10 text-destructive text-[10px] font-semibold rounded-md border border-destructive/30"
+                  title="This product could not be found on HKTVmall during the last refresh. The record and price history are kept."
+                >
+                  <CircleOff className="w-3 h-3" />
+                  No longer available
+                </span>
+              )}
               {isOutOfStock && (
                 <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 bg-muted text-muted-foreground text-[10px] font-semibold rounded-md border border-border/60">
                   Out of Stock
@@ -194,6 +121,14 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
               )}
             </div>
             {product.nameZh && <p className="text-xs text-muted-foreground truncate mt-0.5">{product.nameZh}</p>}
+            {(isUnavailable || lastRefreshFailed) && (
+              <p className="text-[11px] text-destructive/80 flex items-center gap-1 mt-1">
+                <TriangleAlert className="w-3 h-3 shrink-0" />
+                {isUnavailable
+                  ? "Removed from HKTVmall — last known price kept below."
+                  : `Last refresh failed: ${product.lastRefreshError}`}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-3">
@@ -260,11 +195,9 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
               )}
               {unitPriceBadge && (
                 <span
-                  onClick={e => { e.stopPropagation(); handleEditUnit(e); }}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-semibold rounded-lg leading-tight cursor-pointer hover:bg-emerald-100 transition-colors"
-                  title="Edit unit pricing"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-semibold rounded-lg leading-tight"
+                  title="Price per unit — units and package sizes are managed on the Categories page"
                 >
-                  <Scale className="w-3 h-3 shrink-0" />
                   {unitPriceBadge}
                 </span>
               )}
@@ -299,18 +232,6 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
               <Bell className="w-4 h-4" />
             </button>
             <button
-              onClick={handleEditUnit}
-              className={cn(
-                "p-2 rounded-lg transition-colors",
-                (hasUnitPrice || product.productTypeId)
-                  ? "text-emerald-600 bg-emerald-50 hover:bg-emerald-100"
-                  : "text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50"
-              )}
-              title="Set unit pricing / category"
-            >
-              <Scale className="w-4 h-4" />
-            </button>
-            <button
               onClick={handleRefresh}
               disabled={refreshMutation.isPending}
               className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors disabled:opacity-50"
@@ -329,178 +250,6 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
           </div>
         </div>
       </div>
-
-      {/* Inline unit edit panel */}
-      {editingUnit && (
-        <div
-          onClick={e => e.stopPropagation()}
-          className="border-t border-border/60 px-4 sm:px-5 py-4 bg-muted/30 rounded-b-2xl space-y-4"
-        >
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-              <Scale className="w-3.5 h-3.5 text-emerald-600" />
-              Unit Pricing &amp; Category
-            </p>
-            <button onClick={handleCancelUnit} className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Category chips */}
-          <div>
-            <p className="text-[11px] text-muted-foreground mb-1.5 font-medium">Category</p>
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                onClick={() => setSelectedTypeId(null)}
-                className={cn(
-                  "px-2.5 py-1 rounded-lg text-xs font-medium border transition-all",
-                  selectedTypeId === null
-                    ? "bg-muted border-border text-foreground"
-                    : "bg-background border-border text-muted-foreground hover:text-foreground"
-                )}
-              >
-                None
-              </button>
-              {productTypes.map((type) => (
-                <button
-                  key={type.id}
-                  onClick={() => {
-                    setSelectedTypeId(type.id);
-                    if (!packageUnit) setPackageUnit(type.unitLabel);
-                  }}
-                  className={cn(
-                    "px-2.5 py-1 rounded-lg text-xs font-medium border transition-all",
-                    selectedTypeId === type.id
-                      ? "bg-primary/10 border-primary/40 text-primary"
-                      : "bg-background border-border text-foreground hover:border-primary/30"
-                  )}
-                >
-                  {type.name}
-                </button>
-              ))}
-              {productTypes.length === 0 && (
-                <span className="text-xs text-muted-foreground italic">No categories — create some in the Categories page.</span>
-              )}
-            </div>
-          </div>
-
-          {/* Mode toggle */}
-          <div>
-            <p className="text-[11px] text-muted-foreground mb-1.5 font-medium">Package size</p>
-            <div className="flex gap-1 p-0.5 bg-muted rounded-lg w-fit mb-3">
-              <button
-                onClick={() => setInputMode("total")}
-                className={cn(
-                  "flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all",
-                  inputMode === "total"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Beaker className="w-3 h-3" />
-                Total volume
-              </button>
-              <button
-                onClick={() => setInputMode("perItem")}
-                className={cn(
-                  "flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all",
-                  inputMode === "perItem"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Hash className="w-3 h-3" />
-                Per item
-              </button>
-            </div>
-
-            {inputMode === "total" ? (
-              <div className="space-y-1.5">
-                <p className="text-[11px] text-muted-foreground">Enter the total amount in the package (e.g. 2850ml for a 3-pack of 950ml bottles).</p>
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    placeholder="e.g. 2850"
-                    value={totalQty}
-                    onChange={e => setTotalQty(e.target.value)}
-                    className="w-28 px-3 py-1.5 bg-background border border-border rounded-lg focus:outline-none focus:border-primary text-sm transition-colors"
-                  />
-                  <input
-                    type="text"
-                    placeholder="ml / g / tablet"
-                    value={packageUnit}
-                    onChange={e => setPackageUnit(e.target.value)}
-                    className="w-28 px-3 py-1.5 bg-background border border-border rounded-lg focus:outline-none focus:border-primary text-sm transition-colors"
-                  />
-                  {previewLabel && (
-                    <span className="text-xs text-emerald-600 font-semibold">= {previewLabel}</span>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <p className="text-[11px] text-muted-foreground">Enter the size of each individual item and how many you're getting (e.g. 950ml × 3 bottles).</p>
-                <div className="flex flex-wrap gap-2 items-center">
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="number"
-                      min="0"
-                      step="any"
-                      placeholder="950"
-                      value={unitSize}
-                      onChange={e => setUnitSize(e.target.value)}
-                      className="w-24 px-3 py-1.5 bg-background border border-border rounded-lg focus:outline-none focus:border-primary text-sm transition-colors"
-                    />
-                    <input
-                      type="text"
-                      placeholder="ml / g"
-                      value={packageUnit}
-                      onChange={e => setPackageUnit(e.target.value)}
-                      className="w-20 px-3 py-1.5 bg-background border border-border rounded-lg focus:outline-none focus:border-primary text-sm transition-colors"
-                    />
-                  </div>
-                  <span className="text-sm text-muted-foreground font-medium">×</span>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      placeholder="3"
-                      value={itemCount}
-                      onChange={e => setItemCount(e.target.value)}
-                      className="w-20 px-3 py-1.5 bg-background border border-border rounded-lg focus:outline-none focus:border-primary text-sm transition-colors"
-                    />
-                    <span className="text-xs text-muted-foreground">items</span>
-                  </div>
-                  {previewLabel && (
-                    <span className="text-xs text-emerald-600 font-semibold">= {previewLabel}</span>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Save / Cancel */}
-          <div className="flex gap-2 pt-1">
-            <button
-              onClick={handleSaveUnit}
-              disabled={updateUnitMutation.isPending}
-              className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-bold shadow-sm hover:-translate-y-0.5 hover:shadow disabled:opacity-50 disabled:transform-none transition-all"
-            >
-              {updateUnitMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-              {updateUnitMutation.isPending ? "Saving…" : "Save"}
-            </button>
-            <button
-              onClick={handleCancelUnit}
-              className="px-4 py-1.5 bg-muted text-muted-foreground rounded-lg text-xs font-semibold hover:bg-muted/70 transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

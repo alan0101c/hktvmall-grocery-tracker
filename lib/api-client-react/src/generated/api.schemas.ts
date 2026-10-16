@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * HKTVMall Grocery Price Tracker API
- * OpenAPI spec version: 0.4.0
+ * OpenAPI spec version: 0.5.0
  */
 export interface HealthStatus {
   status: string;
@@ -23,10 +23,29 @@ export interface CreateProductTypeRequest {
   unitLabel: string;
 }
 
+export type UpdateProductTypeRequestListingsItem = {
+  productId: number;
+  packageQuantity?: number | null;
+  itemCount?: number | null;
+};
+
 export interface UpdateProductTypeRequest {
   name?: string;
+  /** New unit for the category, canonicalised to lowercase. Changing the unit (beyond case) redefines what every member quantity means, so it is only accepted together with `listings` re-submitting the reviewed quantities in the new unit. The whole update is applied atomically — category unit, member units, and quantities. */
   unitLabel?: string;
+  /** Reviewed member quantities, applied in the same transaction as the unit change. Each entry must reference a product that currently belongs to this category. */
+  listings?: UpdateProductTypeRequestListingsItem[];
 }
+
+/**
+ * active = listed on HKTVmall; unavailable = product page could no longer be parsed (removed/delisted from HKTVmall). The record and its price history are kept either way.
+ */
+export type ProductStatus = (typeof ProductStatus)[keyof typeof ProductStatus];
+
+export const ProductStatus = {
+  active: "active",
+  unavailable: "unavailable",
+} as const;
 
 export interface Product {
   id: number;
@@ -53,7 +72,7 @@ export interface Product {
   productTypeId?: number | null;
   /** Size of each natural unit (e.g. 950 for 950ml per bottle) */
   packageQuantity?: number | null;
-  /** Unit for packageQuantity (e.g. ml, g, tablet, pack) */
+  /** The unit used for the unit price — resolved from the product's category (every product in a category shares the same unit), falling back to the unit the quantity was recorded in for uncategorised products. Null when no unit is known. */
   packageUnit?: string | null;
   /** Resolved name of the product type (category) */
   productTypeName?: string;
@@ -66,6 +85,10 @@ export interface Product {
   isBelowAlert: boolean;
   /** Price change since last check (positive = increase, negative = drop) */
   priceChange?: number | null;
+  /** active = listed on HKTVmall; unavailable = product page could no longer be parsed (removed/delisted from HKTVmall). The record and its price history are kept either way. */
+  status?: ProductStatus;
+  /** Message from the last failed refresh attempt, if any. */
+  lastRefreshError?: string | null;
 }
 
 export interface PriceRecord {
@@ -86,10 +109,10 @@ export type ProductDetail = Product & {
 };
 
 export interface UpdateProductUnitRequest {
+  /** Category to assign. The product's unit is adopted from the category and can never be set here. */
   productTypeId?: number | null;
-  /** Size of each natural unit (e.g. 950 for 950ml per bottle) */
+  /** Size of each natural unit (e.g. 950 for 950ml per bottle), expressed in the category's unit. When the product moves to a category with a different unit, the stored quantity is cleared (quarantined) because it was expressed in the old unit — re-enter it here in the new unit. */
   packageQuantity?: number | null;
-  packageUnit?: string | null;
   /** Number of items in the package. When set, pricePerUnit = price / itemCount. */
   itemCount?: number | null;
 }
@@ -142,17 +165,17 @@ export interface TrackProductRequest {
   name?: string;
   /** Optional alert price to set immediately */
   targetPrice?: number;
-  /** Optional product type to assign */
+  /** Optional product type to assign — the product's unit is adopted from the category */
   productTypeId?: number | null;
-  /** Package size (e.g. 500 for 500ml) */
+  /** Package size (e.g. 500 for 500ml), expressed in the assigned category's unit */
   packageQuantity?: number | null;
-  /** Unit label (e.g. ml, g, tablet, pack) */
-  packageUnit?: string | null;
 }
 
 export interface RefreshResult {
   refreshed: number;
   failed: number;
+  /** Number of products that could not be refreshed because they are no longer listed on HKTVmall (marked unavailable, records kept). */
+  unavailable: number;
   priceDrops: number;
   errors: string[];
 }
@@ -183,7 +206,11 @@ export interface AppSettings {
 }
 
 export interface UpdateSettingsRequest {
-  /** App-wide discount percentage (0–100) */
+  /**
+   * App-wide discount percentage (0–100)
+   * @minimum 0
+   * @maximum 100
+   */
   globalDiscountPercent: number;
 }
 

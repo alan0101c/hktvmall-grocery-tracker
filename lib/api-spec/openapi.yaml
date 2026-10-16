@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Api
-  version: 0.4.0
+  version: 0.5.0
   description: HKTVMall Grocery Price Tracker API
 servers:
   - url: /api
@@ -446,6 +446,28 @@ components:
           type: string
         unitLabel:
           type: string
+          description: >-
+            New unit for the category, canonicalised to lowercase. Changing the unit (beyond
+            case) redefines what every member quantity means, so it is only accepted together
+            with `listings` re-submitting the reviewed quantities in the new unit. The whole
+            update is applied atomically — category unit, member units, and quantities.
+        listings:
+          type: array
+          description: >-
+            Reviewed member quantities, applied in the same transaction as the unit change.
+            Each entry must reference a product that currently belongs to this category.
+          items:
+            type: object
+            properties:
+              productId:
+                type: integer
+              packageQuantity:
+                type: number
+                nullable: true
+              itemCount:
+                type: integer
+                nullable: true
+            required: [productId]
 
     Product:
       type: object
@@ -501,7 +523,7 @@ components:
         packageUnit:
           type: string
           nullable: true
-          description: Unit for packageQuantity (e.g. ml, g, tablet, pack)
+          description: The unit used for the unit price — resolved from the product's category (every product in a category shares the same unit), falling back to the unit the quantity was recorded in for uncategorised products. Null when no unit is known.
         productTypeName:
           type: string
           description: Resolved name of the product type (category)
@@ -525,6 +547,14 @@ components:
           type: number
           description: Price change since last check (positive = increase, negative = drop)
           nullable: true
+        status:
+          type: string
+          enum: [active, unavailable]
+          description: "active = listed on HKTVmall; unavailable = product page could no longer be parsed (removed/delisted from HKTVmall). The record and its price history are kept either way."
+        lastRefreshError:
+          type: string
+          nullable: true
+          description: Message from the last failed refresh attempt, if any.
       required:
         - id
         - name
@@ -576,13 +606,15 @@ components:
         productTypeId:
           type: integer
           nullable: true
+          description: Category to assign. The product's unit is adopted from the category and can never be set here.
         packageQuantity:
           type: number
           nullable: true
-          description: Size of each natural unit (e.g. 950 for 950ml per bottle)
-        packageUnit:
-          type: string
-          nullable: true
+          description: >-
+            Size of each natural unit (e.g. 950 for 950ml per bottle), expressed in the
+            category's unit. When the product moves to a category with a different unit,
+            the stored quantity is cleared (quarantined) because it was expressed in the
+            old unit — re-enter it here in the new unit.
         itemCount:
           type: integer
           nullable: true
@@ -681,15 +713,11 @@ components:
         productTypeId:
           type: integer
           nullable: true
-          description: Optional product type to assign
+          description: Optional product type to assign — the product's unit is adopted from the category
         packageQuantity:
           type: number
           nullable: true
-          description: Package size (e.g. 500 for 500ml)
-        packageUnit:
-          type: string
-          nullable: true
-          description: Unit label (e.g. ml, g, tablet, pack)
+          description: Package size (e.g. 500 for 500ml), expressed in the assigned category's unit
       required: [productUrl]
 
     RefreshResult:
@@ -699,13 +727,16 @@ components:
           type: integer
         failed:
           type: integer
+        unavailable:
+          type: integer
+          description: Number of products that could not be refreshed because they are no longer listed on HKTVmall (marked unavailable, records kept).
         priceDrops:
           type: integer
         errors:
           type: array
           items:
             type: string
-      required: [refreshed, failed, priceDrops, errors]
+      required: [refreshed, failed, unavailable, priceDrops, errors]
 
     SchedulerStatus:
       type: object

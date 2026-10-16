@@ -1,4 +1,13 @@
-import { Bell } from "lucide-react";
+import { useState } from "react";
+import { Bell, ChevronDown, Folder, FolderOpen } from "lucide-react";
+import {
+  buildCategoryTree,
+  branchKey,
+  flattenLeaves,
+  leafSegment,
+  type TreeBranch,
+  type TreeNode,
+} from "@/lib/categoryTree";
 import { cn, formatHKD } from "@/lib/utils";
 
 export interface CategoryStats {
@@ -125,7 +134,134 @@ function SidebarEntry({
   );
 }
 
+function BranchBlock({
+  branch,
+  collapsed,
+  onToggle,
+  activeCategory,
+  onSelect,
+  collapsedGroups,
+  onToggleGroup,
+}: {
+  branch: TreeBranch<CategoryStats>;
+  collapsed: boolean;
+  onToggle: () => void;
+  activeCategory: string | null;
+  onSelect: (cat: string | null) => void;
+  collapsedGroups: Set<string>;
+  onToggleGroup: (key: string) => void;
+}) {
+  const leaves = flattenLeaves(branch);
+  const totalCount = leaves.reduce((a, s) => a + s.count, 0);
+  const hasAlert = leaves.some((s) => s.hasAlert);
+  const anyActive = leaves.some((s) => s.name === activeCategory);
+
+  return (
+    <div>
+      <button
+        onClick={onToggle}
+        className={cn(
+          "w-full flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-left transition-colors",
+          anyActive ? "bg-muted/70" : "hover:bg-muted/50"
+        )}
+        title={collapsed ? `Expand ${branch.segment}` : `Collapse ${branch.segment}`}
+      >
+        <ChevronDown
+          className={cn(
+            "w-3 h-3 shrink-0 text-muted-foreground transition-transform duration-200",
+            collapsed && "-rotate-90"
+          )}
+        />
+        {collapsed ? (
+          <Folder className="w-3.5 h-3.5 shrink-0 text-primary/70" />
+        ) : (
+          <FolderOpen className="w-3.5 h-3.5 shrink-0 text-primary/70" />
+        )}
+        <span className="flex-1 min-w-0 text-[11px] font-bold uppercase tracking-wider text-muted-foreground truncate">
+          {branch.segment}
+        </span>
+        {hasAlert && <Bell className="w-3 h-3 text-destructive shrink-0" />}
+        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
+          {totalCount}
+        </span>
+      </button>
+
+      {!collapsed && (
+        <div className="ml-[13px] pl-2 border-l border-border/70 flex flex-col gap-1 mt-0.5 mb-1">
+          {branch.children.map((child) => (
+            <SidebarNode
+              key={nodeKey(child)}
+              node={child}
+              activeCategory={activeCategory}
+              onSelect={onSelect}
+              collapsedGroups={collapsedGroups}
+              onToggleGroup={onToggleGroup}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function nodeKey(node: TreeNode<CategoryStats>): string {
+  return node.kind === "leaf" ? node.item.name : branchKey(node.prefix);
+}
+
+function SidebarNode({
+  node,
+  activeCategory,
+  onSelect,
+  collapsedGroups,
+  onToggleGroup,
+}: {
+  node: TreeNode<CategoryStats>;
+  activeCategory: string | null;
+  onSelect: (cat: string | null) => void;
+  collapsedGroups: Set<string>;
+  onToggleGroup: (key: string) => void;
+}) {
+  if (node.kind === "leaf") {
+    const stat = node.item;
+    const isActive = activeCategory === stat.name;
+    return (
+      <SidebarEntry
+        label={node.segment}
+        count={stat.count}
+        priceRange={priceRangeLabel(stat)}
+        color={discountColor(stat.avgDiscountRatio)}
+        hasAlert={stat.hasAlert}
+        isActive={isActive}
+        onClick={() => onSelect(isActive ? null : stat.name)}
+      />
+    );
+  }
+  const key = branchKey(node.prefix);
+  return (
+    <BranchBlock
+      branch={node}
+      collapsed={collapsedGroups.has(key)}
+      onToggle={() => onToggleGroup(key)}
+      activeCategory={activeCategory}
+      onSelect={onSelect}
+      collapsedGroups={collapsedGroups}
+      onToggleGroup={onToggleGroup}
+    />
+  );
+}
+
 export function CategorySidebar({ stats, activeCategory, onSelect, totalCount, variant = "sidebar" }: CategorySidebarProps) {
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroup = (key: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   if (variant === "chips") {
     return (
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -158,9 +294,10 @@ export function CategorySidebar({ stats, activeCategory, onSelect, totalCount, v
                 "shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap shadow-sm",
                 chipColor
               )}
+              title={stat.name}
             >
               {stat.hasAlert && <Bell className={cn("w-3 h-3", isActive ? "text-white" : "text-destructive")} />}
-              {stat.name}
+              {leafSegment(stat.name)}
               <span className={cn("text-[10px] font-bold", isActive ? "opacity-80" : "opacity-60")}>
                 {stat.count}
               </span>
@@ -170,6 +307,8 @@ export function CategorySidebar({ stats, activeCategory, onSelect, totalCount, v
       </div>
     );
   }
+
+  const nodes = buildCategoryTree(stats, (s) => s.name);
 
   return (
     <div className="flex flex-col gap-1">
@@ -186,22 +325,16 @@ export function CategorySidebar({ stats, activeCategory, onSelect, totalCount, v
         onClick={() => onSelect(null)}
       />
 
-      {stats.map((stat) => {
-        const color = discountColor(stat.avgDiscountRatio);
-        const isActive = activeCategory === stat.name;
-        return (
-          <SidebarEntry
-            key={stat.name}
-            label={stat.name}
-            count={stat.count}
-            priceRange={priceRangeLabel(stat)}
-            color={color}
-            hasAlert={stat.hasAlert}
-            isActive={isActive}
-            onClick={() => onSelect(isActive ? null : stat.name)}
-          />
-        );
-      })}
+      {nodes.map((node) => (
+        <SidebarNode
+          key={nodeKey(node)}
+          node={node}
+          activeCategory={activeCategory}
+          onSelect={onSelect}
+          collapsedGroups={collapsedGroups}
+          onToggleGroup={toggleGroup}
+        />
+      ))}
     </div>
   );
 }

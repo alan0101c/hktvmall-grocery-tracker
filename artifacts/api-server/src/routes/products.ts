@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { productsTable, priceHistoryTable, alertsTable, productTypesTable } from "@workspace/db";
 import { eq, ilike, and, or } from "drizzle-orm";
 import { GetProductsQueryParams, TrackProductBody } from "@workspace/api-zod";
-import { scrapeProductByUrl, searchHKTVMall } from "../lib/scraper.js";
+import { scrapeProductByUrl, searchHKTVMall, ProductUnavailableError } from "../lib/scraper.js";
 import { refreshProduct, refreshAllProducts } from "../lib/refreshService.js";
 import { getGlobalDiscountPercent, applyDiscount } from "../lib/settings.js";
 
@@ -13,7 +13,7 @@ function buildProductResponse(
   p: typeof productsTable.$inferSelect,
   alertMap: Map<number, number>,
   prevPriceMap?: Map<number, number>,
-  typeNameMap?: Map<number, string>,
+  typesMap?: Map<number, { name: string; unitLabel: string }>,
   globalDiscountPercent = 0
 ) {
   const currentPrice = parseFloat(p.currentPrice);
@@ -53,11 +53,15 @@ function buildProductResponse(
     sku: p.sku ?? undefined,
     inStock: p.inStock,
     productTypeId: p.productTypeId ?? null,
-    productTypeName: (p.productTypeId && typeNameMap?.get(p.productTypeId)) || undefined,
+    productTypeName: (p.productTypeId && typesMap?.get(p.productTypeId)?.name) || undefined,
     packageQuantity,
-    packageUnit: p.packageUnit ?? null,
+    // Canonical unit comes from the category; uncategorised products fall back
+    // to the unit their quantity was recorded in.
+    packageUnit: (p.productTypeId && typesMap?.get(p.productTypeId)?.unitLabel) || p.packageUnit || null,
     itemCount,
     pricePerUnit,
+    status: p.status,
+    lastRefreshError: p.lastRefreshError ?? null,
     lastUpdated: p.lastUpdated,
     alertPrice,
     isBelowAlert,
@@ -98,10 +102,52 @@ router.get("/search", async (req, res) => {
   }
 });
 
+/**
+ * Resolve the unit to store when a product is (re)assigned to a category.
+ * The category owns the canonical unit. Comparison is case-insensitive and the
+ * category's unitLabel is stored as-is.
+ *
+ * - No category: the recorded unit (if any) is kept as-is.
+ * - Recorded unit matches (case-insensitively) or is absent: adopt the category's unit.
+ * - Implicit mismatch (the unit came from the product's existing row): the move is
+ *   allowed but the quantity is QUARANTINED — it was expressed in the old unit, so
+ *   the caller must null it out and let the user re-enter it in the new unit.
+ * - Explicit mismatch (the request itself supplied the unit): rejected, since the
+ *   caller clearly intended that unit and picked the wrong category.
+ */
+async function resolveUnitForAssignment(
+  productTypeId: number | null | undefined,
+  recordedUnit: string | null | undefined,
+  explicit: boolean
+): Promise<{ error?: string; unit?: string | null; quarantine?: boolean }> {
+  const unit = recordedUnit?.trim() || null;
+  if (productTypeId == null) return { unit };
+  const types = await db.select().from(productTypesTable).where(eq(productTypesTable.id, productTypeId));
+  if (!types.length) return { error: "Product type not found" };
+  const type = types[0];
+  if (unit && unit.toLowerCase() !== type.unitLabel.trim().toLowerCase()) {
+    if (explicit) {
+      return {
+        error: `Unit mismatch: "${type.name}" is measured in ${type.unitLabel}, but the quantity you entered is in ${unit}.`,
+      };
+    }
+    return { unit: type.unitLabel, quarantine: true };
+  }
+  return { unit: type.unitLabel };
+}
+
 router.post("/track", async (req, res) => {
   try {
     const body = TrackProductBody.parse(req.body);
-    const { productUrl, name: nameOverride, targetPrice, productTypeId, packageQuantity, packageUnit } = body;
+    const { productUrl, name: nameOverride, targetPrice, productTypeId, packageQuantity } = body;
+
+    // The unit is adopted from the category (if any) — it is never set here.
+    // Validate before scraping so an unknown category fails fast.
+    const assigned = await resolveUnitForAssignment(productTypeId, null, false);
+    if (assigned.error) {
+      res.status(400).json({ error: assigned.error });
+      return;
+    }
 
     const scraped = await scrapeProductByUrl(productUrl);
 
@@ -125,6 +171,17 @@ router.post("/track", async (req, res) => {
     let productId: number;
     if (existing.length > 0) {
       productId = existing[0].id;
+      // A re-track of an existing product validates against the unit it already
+      // has; a category switch to a different unit quarantines the quantity.
+      const existingAssigned = await resolveUnitForAssignment(
+        productTypeId,
+        existing[0].packageUnit,
+        false
+      );
+      if (existingAssigned.error) {
+        res.status(400).json({ error: existingAssigned.error });
+        return;
+      }
       await db
         .update(productsTable)
         .set({
@@ -137,7 +194,8 @@ router.post("/track", async (req, res) => {
           lastUpdated: new Date(),
           ...(productTypeId !== undefined && { productTypeId }),
           ...(packageQuantity !== undefined && { packageQuantity: packageQuantity?.toString() }),
-          ...(packageUnit !== undefined && { packageUnit }),
+          ...(existingAssigned.quarantine && { packageQuantity: null }),
+          ...(productTypeId !== undefined && { packageUnit: existingAssigned.unit }),
         })
         .where(eq(productsTable.id, productId));
 
@@ -169,7 +227,7 @@ router.post("/track", async (req, res) => {
           lastUpdated: new Date(),
           productTypeId: productTypeId ?? null,
           packageQuantity: packageQuantity?.toString() ?? null,
-          packageUnit: packageUnit ?? null,
+          packageUnit: assigned.unit,
         })
         .returning();
       productId = inserted.id;
@@ -195,10 +253,16 @@ router.post("/track", async (req, res) => {
     const products = await db.select().from(productsTable).where(eq(productsTable.id, productId));
     const alerts = await db.select().from(alertsTable);
     const alertMap = new Map(alerts.map((a) => [a.productId, parseFloat(a.targetPrice)]));
+    const allTypes = await db.select().from(productTypesTable);
+    const typesMap = new Map(allTypes.map((t) => [t.id, { name: t.name, unitLabel: t.unitLabel }]));
     const globalDiscountPercent = await getGlobalDiscountPercent();
 
-    res.status(201).json(buildProductResponse(products[0], alertMap, undefined, undefined, globalDiscountPercent));
+    res.status(201).json(buildProductResponse(products[0], alertMap, undefined, typesMap, globalDiscountPercent));
   } catch (err) {
+    if (err instanceof ProductUnavailableError) {
+      res.status(400).json({ error: "This product is no longer available on HKTVmall." });
+      return;
+    }
     res.status(500).json({ error: String(err) });
   }
 });
@@ -217,7 +281,7 @@ router.get("/", async (req, res) => {
     const query = GetProductsQueryParams.parse(req.query);
 
     const allTypes = await db.select().from(productTypesTable);
-    const typeNameMap = new Map(allTypes.map((t) => [t.id, t.name]));
+    const typesMap = new Map(allTypes.map((t) => [t.id, { name: t.name, unitLabel: t.unitLabel }]));
 
     const conditions = [];
     if (query.search) {
@@ -257,7 +321,7 @@ router.get("/", async (req, res) => {
     const globalDiscountPercent = await getGlobalDiscountPercent();
 
     const result = products
-      .map((p) => buildProductResponse(p, alertMap, prevPriceMap, typeNameMap, globalDiscountPercent))
+      .map((p) => buildProductResponse(p, alertMap, prevPriceMap, typesMap, globalDiscountPercent))
       .filter((p) => {
         if (query.belowAlert) return p.isBelowAlert;
         return true;
@@ -290,11 +354,11 @@ router.get("/:id", async (req, res) => {
     const alertMap = new Map(alerts.map((a) => [a.productId, parseFloat(a.targetPrice)]));
 
     const allTypes = await db.select().from(productTypesTable);
-    const typeNameMap = new Map(allTypes.map((t) => [t.id, t.name]));
+    const typesMap = new Map(allTypes.map((t) => [t.id, { name: t.name, unitLabel: t.unitLabel }]));
     const globalDiscountPercent = await getGlobalDiscountPercent();
 
     res.json({
-      ...buildProductResponse(p, alertMap, undefined, typeNameMap, globalDiscountPercent),
+      ...buildProductResponse(p, alertMap, undefined, typesMap, globalDiscountPercent),
       priceHistory: history.map((h) => ({
         id: h.id,
         price: parseFloat(h.price),
@@ -323,9 +387,11 @@ router.post("/:id/refresh", async (req, res) => {
     const products = await db.select().from(productsTable).where(eq(productsTable.id, id));
     const alerts = await db.select().from(alertsTable);
     const alertMap = new Map(alerts.map((a) => [a.productId, parseFloat(a.targetPrice)]));
+    const allTypes = await db.select().from(productTypesTable);
+    const typesMap = new Map(allTypes.map((t) => [t.id, { name: t.name, unitLabel: t.unitLabel }]));
     const globalDiscountPercent = await getGlobalDiscountPercent();
 
-    res.json(buildProductResponse(products[0], alertMap, undefined, undefined, globalDiscountPercent));
+    res.json(buildProductResponse(products[0], alertMap, undefined, typesMap, globalDiscountPercent));
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
@@ -334,28 +400,43 @@ router.post("/:id/refresh", async (req, res) => {
 router.put("/:id/unit", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { productTypeId, packageQuantity, packageUnit, itemCount } = req.body;
+    // The unit is owned by the category and cannot be written here — it is
+    // adopted at assignment time. The only unit-related behavior left on this
+    // endpoint: moving to a category with a different unit quarantines the
+    // quantity (it was expressed in the old unit) so no wrong per-unit price
+    // is ever shown; the user re-enters it in the new unit.
+    const { productTypeId, packageQuantity, itemCount } = req.body;
+
+    const existing = await db.select().from(productsTable).where(eq(productsTable.id, id));
+    if (!existing.length) {
+      res.status(404).json({ error: "Product not found" });
+      return;
+    }
+
+    const assigned = await resolveUnitForAssignment(productTypeId, existing[0].packageUnit, false);
+    if (assigned.error) {
+      res.status(400).json({ error: assigned.error });
+      return;
+    }
 
     await db
       .update(productsTable)
       .set({
         productTypeId: productTypeId ?? null,
-        packageQuantity: packageQuantity != null ? String(packageQuantity) : null,
-        packageUnit: packageUnit ?? null,
+        packageQuantity: assigned.quarantine ? null : packageQuantity != null ? String(packageQuantity) : null,
+        packageUnit: assigned.unit,
         itemCount: itemCount != null ? Number(itemCount) : null,
       })
       .where(eq(productsTable.id, id));
 
     const products = await db.select().from(productsTable).where(eq(productsTable.id, id));
-    if (!products.length) {
-      res.status(404).json({ error: "Product not found" });
-      return;
-    }
     const alerts = await db.select().from(alertsTable);
     const alertMap = new Map(alerts.map((a) => [a.productId, parseFloat(a.targetPrice)]));
+    const allTypes = await db.select().from(productTypesTable);
+    const typesMap = new Map(allTypes.map((t) => [t.id, { name: t.name, unitLabel: t.unitLabel }]));
     const globalDiscountPercent = await getGlobalDiscountPercent();
 
-    res.json(buildProductResponse(products[0], alertMap, undefined, undefined, globalDiscountPercent));
+    res.json(buildProductResponse(products[0], alertMap, undefined, typesMap, globalDiscountPercent));
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }

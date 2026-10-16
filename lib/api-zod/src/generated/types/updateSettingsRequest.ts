@@ -3,10 +3,14 @@
  * Do not edit manually.
  * Api
  * HKTVMall Grocery Price Tracker API
- * OpenAPI spec version: 0.4.0
+ * OpenAPI spec version: 0.5.0
  */
 
 export interface UpdateSettingsRequest {
-  /** App-wide discount percentage (0–100) */
+  /**
+   * App-wide discount percentage (0–100)
+   * @minimum 0
+   * @maximum 100
+   */
   globalDiscountPercent: number;
 }

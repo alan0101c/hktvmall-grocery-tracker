@@ -3,11 +3,14 @@
  * Do not edit manually.
  * Api
  * HKTVMall Grocery Price Tracker API
- * OpenAPI spec version: 0.3.0
+ * OpenAPI spec version: 0.5.0
  */
 
 export interface UpdateProductUnitRequest {
+  /** Category to assign. The product's unit is adopted from the category and can never be set here. */
   productTypeId?: number | null;
+  /** Size of each natural unit (e.g. 950 for 950ml per bottle), expressed in the category's unit. When the product moves to a category with a different unit, the stored quantity is cleared (quarantined) because it was expressed in the old unit — re-enter it here in the new unit. */
   packageQuantity?: number | null;
-  packageUnit?: string | null;
+  /** Number of items in the package. When set, pricePerUnit = price / itemCount. */
+  itemCount?: number | null;
 }

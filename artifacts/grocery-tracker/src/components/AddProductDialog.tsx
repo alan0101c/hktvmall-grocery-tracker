@@ -31,7 +31,6 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
 
   // Step 2 fields
   const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null);
-  const [packageUnit, setPackageUnit] = useState("");
   const [inputMode, setInputMode] = useState<"total" | "perItem">("total");
   const [unitSize, setUnitSize] = useState("");
   const [itemCount, setItemCount] = useState("");
@@ -64,7 +63,6 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
     setAddedViaSearch(viaSearch);
     setStep("configure");
     setSelectedTypeId(null);
-    setPackageUnit("");
     setInputMode("total");
     setUnitSize("");
     setItemCount("");
@@ -81,8 +79,9 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
           afterTrack(product, false);
           setUrlInput("");
         },
-        onError: () => {
-          toast({ title: "Failed to add", description: "Please check the URL and try again.", variant: "destructive" });
+        onError: (err) => {
+          const message = err.message.replace(/^HTTP \d+[^:]+:\s*/, "");
+          toast({ title: "Failed to add", description: message || "Please check the URL and try again.", variant: "destructive" });
         },
       }
     );
@@ -119,7 +118,6 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
         data: {
           productTypeId: selectedTypeId ?? null,
           packageQuantity,
-          packageUnit: packageUnit.trim() || null,
           itemCount: finalItemCount,
         },
       },
@@ -132,6 +130,13 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
           } else {
             handleClose();
           }
+        },
+        onError: (err) => {
+          toast({
+            title: "Couldn't save unit pricing",
+            description: err.message?.replace(/^HTTP \d+[^:]+:\s*/, "") || undefined,
+            variant: "destructive",
+          });
         },
       }
     );
@@ -154,7 +159,6 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
     setNewCategoryName("");
     setNewCategoryUnit("");
     setSelectedTypeId(null);
-    setPackageUnit("");
     setInputMode("total");
     setUnitSize("");
     setItemCount("");
@@ -187,7 +191,6 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
         onSuccess: (newType) => {
           queryClient.invalidateQueries({ queryKey: getGetProductTypesQueryKey() });
           setSelectedTypeId(newType.id);
-          setPackageUnit(newType.unitLabel);
           setShowNewCategoryForm(false);
           setNewCategoryName("");
           setNewCategoryUnit("");
@@ -405,10 +408,8 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
                     onClick={() => {
                       if (selectedTypeId === type.id) {
                         setSelectedTypeId(null);
-                        setPackageUnit("");
                       } else {
                         setSelectedTypeId(type.id);
-                        setPackageUnit(type.unitLabel);
                       }
                     }}
                     className={cn(
@@ -535,17 +536,21 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
                       onChange={(e) => setTotalQty(e.target.value)}
                       className="flex-1 px-4 py-2.5 bg-background border-2 border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all placeholder:text-muted-foreground text-sm"
                     />
-                    <input
-                      type="text"
-                      placeholder={selectedType?.unitLabel ?? "ml / g / tablet"}
-                      value={packageUnit}
-                      onChange={(e) => setPackageUnit(e.target.value)}
-                      className="w-32 px-4 py-2.5 bg-background border-2 border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all placeholder:text-muted-foreground text-sm"
-                    />
+                    <span
+                      className={cn(
+                        "inline-flex items-center px-4 py-2.5 rounded-xl text-sm border-2",
+                        selectedType
+                          ? "bg-muted/60 border-border text-foreground font-medium"
+                          : "border-dashed border-border text-muted-foreground italic"
+                      )}
+                      title={selectedType ? "Unit comes from the selected category" : "Pick a category above to set the unit"}
+                    >
+                      {selectedType?.unitLabel ?? "no category"}
+                    </span>
                   </div>
                   {totalQty && parseFloat(totalQty) > 0 && (
                     <p className="text-xs text-emerald-600 font-medium">
-                      = {formatHKD(justAdded.currentPrice / parseFloat(totalQty))}/{packageUnit || selectedType?.unitLabel || "unit"}
+                      = {formatHKD(justAdded.currentPrice / parseFloat(totalQty))}/{selectedType?.unitLabel || "unit"}
                     </p>
                   )}
                 </div>
@@ -562,13 +567,17 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
                       onChange={(e) => setUnitSize(e.target.value)}
                       className="w-28 px-4 py-2.5 bg-background border-2 border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all placeholder:text-muted-foreground text-sm"
                     />
-                    <input
-                      type="text"
-                      placeholder={selectedType?.unitLabel ?? "ml / g"}
-                      value={packageUnit}
-                      onChange={(e) => setPackageUnit(e.target.value)}
-                      className="w-28 px-4 py-2.5 bg-background border-2 border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all placeholder:text-muted-foreground text-sm"
-                    />
+                    <span
+                      className={cn(
+                        "inline-flex items-center px-3 py-2.5 rounded-xl text-sm border-2",
+                        selectedType
+                          ? "bg-muted/60 border-border text-foreground font-medium"
+                          : "border-dashed border-border text-muted-foreground italic"
+                      )}
+                      title={selectedType ? "Unit comes from the selected category" : "Pick a category above to set the unit"}
+                    >
+                      {selectedType?.unitLabel ?? "no category"}
+                    </span>
                     <span className="text-sm font-bold text-muted-foreground">×</span>
                     <input
                       type="number"
@@ -583,7 +592,7 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
                   </div>
                   {itemCount && parseInt(itemCount) > 0 && (
                     <p className="text-xs text-emerald-600 font-medium">
-                      = {formatHKD(justAdded.currentPrice / parseInt(itemCount))} per {unitSize && parseFloat(unitSize) > 0 ? `${unitSize}${packageUnit || selectedType?.unitLabel || ""}` : "item"}
+                      = {formatHKD(justAdded.currentPrice / parseInt(itemCount))} per {unitSize && parseFloat(unitSize) > 0 ? `${unitSize}${selectedType?.unitLabel ?? ""}` : "item"}
                     </p>
                   )}
                 </div>

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, appSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { UpdateSettingsBody } from "@workspace/api-zod";
+import { UpdateAppSettingsBody } from "@workspace/api-zod";
 import { getGlobalDiscountPercent, setGlobalDiscountPercent, SETTINGS_ROW_ID } from "../lib/settings.js";
 
 const router: IRouter = Router();
@@ -25,7 +25,7 @@ router.get("/", async (_req, res) => {
 
 router.put("/", async (req, res) => {
   try {
-    const body = UpdateSettingsBody.parse(req.body);
+    const body = UpdateAppSettingsBody.parse(req.body);
     await setGlobalDiscountPercent(body.globalDiscountPercent);
     res.json(await buildSettingsResponse());
   } catch (err) {

@@ -26,8 +26,22 @@ export const productsTable = pgTable("products", {
   promotionTexts: jsonb("promotion_texts").$type<string[]>(),
   productTypeId: integer("product_type_id").references(() => productTypesTable.id, { onDelete: "set null" }),
   packageQuantity: numeric("package_quantity", { precision: 10, scale: 3 }),
+  /**
+   * The unit the package quantity was entered in (ml, g, pack, …).
+   * The category (product_types.unit_label) owns the canonical unit: assigning a
+   * product to a category is rejected when this differs from the category's unit,
+   * and products without a recorded unit adopt the category's on assignment.
+   */
   packageUnit: text("package_unit"),
   itemCount: integer("item_count"),
+  /**
+   * "active" = product page parses normally on HKTVmall.
+   * "unavailable" = the product could no longer be parsed (removed/delisted
+   * from HKTVmall). The record is kept for price history either way.
+   */
+  status: text("status").notNull().default("active"),
+  /** Message from the last failed refresh attempt, if any. */
+  lastRefreshError: text("last_refresh_error"),
   lastUpdated: timestamp("last_updated").notNull().defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

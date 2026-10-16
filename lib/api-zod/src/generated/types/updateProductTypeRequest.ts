@@ -3,10 +3,14 @@
  * Do not edit manually.
  * Api
  * HKTVMall Grocery Price Tracker API
- * OpenAPI spec version: 0.3.0
+ * OpenAPI spec version: 0.5.0
  */
+import type { UpdateProductTypeRequestListingsItem } from "./updateProductTypeRequestListingsItem";
 
 export interface UpdateProductTypeRequest {
   name?: string;
+  /** New unit for the category, canonicalised to lowercase. Changing the unit (beyond case) redefines what every member quantity means, so it is only accepted together with `listings` re-submitting the reviewed quantities in the new unit. The whole update is applied atomically — category unit, member units, and quantities. */
   unitLabel?: string;
+  /** Reviewed member quantities, applied in the same transaction as the unit change. Each entry must reference a product that currently belongs to this category. */
+  listings?: UpdateProductTypeRequestListingsItem[];
 }
