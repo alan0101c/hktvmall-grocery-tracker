@@ -55,6 +55,9 @@ export async function refreshProduct(productId: number): Promise<{ success: bool
     await db
       .update(productsTable)
       .set({
+        // Product names (and categories) change on HKTVmall over time —
+        // overwrite with the latest parse; no history is kept for them.
+        name: scraped.name,
         currentPrice: newPrice.toString(),
         originalPrice: scraped.originalPrice?.toString() ?? null,
         plusPrice: scraped.plusPrice?.toString() ?? null,
@@ -63,6 +66,7 @@ export async function refreshProduct(productId: number): Promise<{ success: bool
         inStock: scraped.inStock,
         nameZh: scraped.nameZh ?? product.nameZh,
         brand: scraped.brand ?? product.brand,
+        category: scraped.category ?? product.category,
         // Scrape succeeded, so the product is back/listed again.
         status: "active",
         lastRefreshError: null,

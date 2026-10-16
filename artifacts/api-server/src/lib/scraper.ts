@@ -281,9 +281,35 @@ export async function scrapeProductByUrl(
           (t) => !promotionTexts.some((o) => o !== t && o.length < t.length && t.includes(o))
         );
 
+        // Best-effort category from the breadcrumb trail. Absent on many
+        // pages — callers fall back to the category they already have.
+        let categoryName = "";
+        const crumbSelectors = [
+          'nav[aria-label*="readcrumb"] li',
+          ".breadcrumb li",
+          '[class*="breadcrumb"] li',
+          '[class*="breadcrumb"] a',
+        ];
+        const crumbs: string[] = [];
+        for (const sel of crumbSelectors) {
+          const nodeList = document.querySelectorAll(sel);
+          for (let i = 0; i < nodeList.length; i++) {
+            const node = nodeList[i] as { textContent: string | null } | null;
+            const txt = (node?.textContent?.trim() || "").replace(/\s+/g, " ");
+            if (txt) crumbs.push(txt);
+          }
+          if (crumbs.length > 0) break;
+        }
+        const isRootCrumb = (c: string) => /^(hktvmall|home|主頁|首页)$/i.test(c);
+        const meaningfulCrumbs = crumbs.filter((c) => c && !isRootCrumb(c) && c !== name);
+        if (meaningfulCrumbs.length > 0) {
+          categoryName = meaningfulCrumbs[meaningfulCrumbs.length - 1];
+        }
+
         return {
           name,
           brand,
+          categoryName,
           currentPriceStr,
           originalPriceStr,
           imageUrl,
@@ -301,7 +327,7 @@ export async function scrapeProductByUrl(
       return {
         name: data.name,
         brand: data.brand || undefined,
-        category: "Supermarket",
+        category: data.categoryName || undefined,
         currentPrice,
         originalPrice:
           originalPrice && originalPrice !== currentPrice

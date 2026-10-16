@@ -185,6 +185,12 @@ router.post("/track", async (req, res) => {
       await db
         .update(productsTable)
         .set({
+          // Same as refresh: adopt the latest parsed attributes (a user's
+          // explicit name override wins), no history kept for them.
+          name: nameOverride || scraped?.name || existing[0].name,
+          nameZh: scraped?.nameZh ?? existing[0].nameZh,
+          brand: scraped?.brand ?? existing[0].brand,
+          category: scraped?.category ?? existing[0].category,
           currentPrice: currentPrice.toString(),
           originalPrice: scraped?.originalPrice?.toString() ?? null,
           plusPrice: scraped?.plusPrice?.toString() ?? null,
