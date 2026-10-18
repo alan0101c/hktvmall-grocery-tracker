@@ -39,19 +39,13 @@ export const GetProductsResponseItem = zod.object({
     .number()
     .nullish()
     .describe(
-      "Effective price after the applicable discount: the product's own extra-off campaign tag (extraDiscountPercent) when present, otherwise the app-wide global discount. Equals currentPrice when neither is set.",
-    ),
-  globalDiscountPercent: zod
-    .number()
-    .optional()
-    .describe(
-      "The app-wide discount percentage in effect when this response was built (0 = none)",
+      "Effective price after the product's own extra-off campaign tag (extraDiscountPercent). Equals currentPrice when the product has no tag.",
     ),
   extraDiscountPercent: zod
     .number()
     .nullish()
     .describe(
-      "Per-product extra-off rate parsed from the product's own HKTVmall campaign price tag (15 = 「今日85折」, 5 = 「今日95折」). Takes precedence over globalDiscountPercent in adjustedPrice. Null when the product has no tag, is not campaign-eligible, or has not been re-scraped since this field was introduced.",
+      "Per-product extra-off rate parsed from the product's own HKTVmall campaign price tag (15 = 「今日85折」, 5 = 「今日95折」); drives adjustedPrice. Null when the product has no tag, is not campaign-eligible, or has not been re-scraped since this field was introduced.",
     ),
   extraDiscountLabel: zod
     .string()
@@ -208,19 +202,13 @@ export const GetProductResponse = zod
       .number()
       .nullish()
       .describe(
-        "Effective price after the applicable discount: the product's own extra-off campaign tag (extraDiscountPercent) when present, otherwise the app-wide global discount. Equals currentPrice when neither is set.",
-      ),
-    globalDiscountPercent: zod
-      .number()
-      .optional()
-      .describe(
-        "The app-wide discount percentage in effect when this response was built (0 = none)",
+        "Effective price after the product's own extra-off campaign tag (extraDiscountPercent). Equals currentPrice when the product has no tag.",
       ),
     extraDiscountPercent: zod
       .number()
       .nullish()
       .describe(
-        "Per-product extra-off rate parsed from the product's own HKTVmall campaign price tag (15 = 「今日85折」, 5 = 「今日95折」). Takes precedence over globalDiscountPercent in adjustedPrice. Null when the product has no tag, is not campaign-eligible, or has not been re-scraped since this field was introduced.",
+        "Per-product extra-off rate parsed from the product's own HKTVmall campaign price tag (15 = 「今日85折」, 5 = 「今日95折」); drives adjustedPrice. Null when the product has no tag, is not campaign-eligible, or has not been re-scraped since this field was introduced.",
       ),
     extraDiscountLabel: zod
       .string()
@@ -364,19 +352,13 @@ export const RefreshProductResponse = zod.object({
     .number()
     .nullish()
     .describe(
-      "Effective price after the applicable discount: the product's own extra-off campaign tag (extraDiscountPercent) when present, otherwise the app-wide global discount. Equals currentPrice when neither is set.",
-    ),
-  globalDiscountPercent: zod
-    .number()
-    .optional()
-    .describe(
-      "The app-wide discount percentage in effect when this response was built (0 = none)",
+      "Effective price after the product's own extra-off campaign tag (extraDiscountPercent). Equals currentPrice when the product has no tag.",
     ),
   extraDiscountPercent: zod
     .number()
     .nullish()
     .describe(
-      "Per-product extra-off rate parsed from the product's own HKTVmall campaign price tag (15 = 「今日85折」, 5 = 「今日95折」). Takes precedence over globalDiscountPercent in adjustedPrice. Null when the product has no tag, is not campaign-eligible, or has not been re-scraped since this field was introduced.",
+      "Per-product extra-off rate parsed from the product's own HKTVmall campaign price tag (15 = 「今日85折」, 5 = 「今日95折」); drives adjustedPrice. Null when the product has no tag, is not campaign-eligible, or has not been re-scraped since this field was introduced.",
     ),
   extraDiscountLabel: zod
     .string()
@@ -492,19 +474,13 @@ export const UpdateProductUnitResponse = zod.object({
     .number()
     .nullish()
     .describe(
-      "Effective price after the applicable discount: the product's own extra-off campaign tag (extraDiscountPercent) when present, otherwise the app-wide global discount. Equals currentPrice when neither is set.",
-    ),
-  globalDiscountPercent: zod
-    .number()
-    .optional()
-    .describe(
-      "The app-wide discount percentage in effect when this response was built (0 = none)",
+      "Effective price after the product's own extra-off campaign tag (extraDiscountPercent). Equals currentPrice when the product has no tag.",
     ),
   extraDiscountPercent: zod
     .number()
     .nullish()
     .describe(
-      "Per-product extra-off rate parsed from the product's own HKTVmall campaign price tag (15 = 「今日85折」, 5 = 「今日95折」). Takes precedence over globalDiscountPercent in adjustedPrice. Null when the product has no tag, is not campaign-eligible, or has not been re-scraped since this field was introduced.",
+      "Per-product extra-off rate parsed from the product's own HKTVmall campaign price tag (15 = 「今日85折」, 5 = 「今日95折」); drives adjustedPrice. Null when the product has no tag, is not campaign-eligible, or has not been re-scraped since this field was introduced.",
     ),
   extraDiscountLabel: zod
     .string()
@@ -669,7 +645,7 @@ export const GetAlertsResponseItem = zod.object({
     .number()
     .nullish()
     .describe(
-      "Effective price after the applicable discount (product's own extra-off tag first, global discount as fallback)",
+      "Effective price after the product's own extra-off campaign tag (equals currentPrice when no tag)",
     ),
   isTriggered: zod
     .boolean()
@@ -712,13 +688,13 @@ export const GetTriggeredAlertsResponseItem = zod.object({
     .number()
     .nullish()
     .describe(
-      "Effective price after the applicable discount (product's own extra-off tag first, global discount as fallback)",
+      "Effective price after the product's own extra-off campaign tag (equals currentPrice when no tag)",
     ),
   extraDiscountPercent: zod
     .number()
     .nullish()
     .describe(
-      "The product's own extra-off campaign rate (15 = 「今日85折」, 5 = 「今日95折」) when it triggered the alert; null when the global discount (or no discount) applies",
+      "The product's own extra-off campaign rate (15 = 「今日85折」, 5 = 「今日95折」) when it triggered the alert; null when no discount applies",
     ),
   targetPrice: zod.number(),
   savings: zod
@@ -759,39 +735,4 @@ export const UpdateSchedulerResponse = zod.object({
   lastRun: zod.date().nullish(),
   nextRun: zod.date().nullish(),
   totalRuns: zod.number(),
-});
-
-/**
- * @summary Get app-wide settings
- */
-export const GetAppSettingsResponse = zod.object({
-  globalDiscountPercent: zod
-    .number()
-    .describe(
-      "App-wide discount percentage applied on top of listed prices (e.g. 15 for a sitewide 15% off promotion). 0 = no adjustment.",
-    ),
-  updatedAt: zod.date().optional(),
-});
-
-/**
- * @summary Update app-wide settings (global discount adjustment)
- */
-export const updateAppSettingsBodyGlobalDiscountPercentMin = 0;
-export const updateAppSettingsBodyGlobalDiscountPercentMax = 100;
-
-export const UpdateAppSettingsBody = zod.object({
-  globalDiscountPercent: zod
-    .number()
-    .min(updateAppSettingsBodyGlobalDiscountPercentMin)
-    .max(updateAppSettingsBodyGlobalDiscountPercentMax)
-    .describe("App-wide discount percentage (0–100)"),
-});
-
-export const UpdateAppSettingsResponse = zod.object({
-  globalDiscountPercent: zod
-    .number()
-    .describe(
-      "App-wide discount percentage applied on top of listed prices (e.g. 15 for a sitewide 15% off promotion). 0 = no adjustment.",
-    ),
-  updatedAt: zod.date().optional(),
 });

@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
 import { SchedulerSettings } from "@/components/SchedulerSettings";
-import { GlobalDiscountSettings } from "@/components/GlobalDiscountSettings";
 import { AddProductDialog } from "@/components/AddProductDialog";
 import { ProductRow } from "@/components/ProductRow";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
@@ -168,7 +167,6 @@ export default function ProductsPage() {
 
       <div className="grid gap-4 lg:grid-cols-2 mb-8">
         <SchedulerSettings />
-        <GlobalDiscountSettings />
       </div>
 
       {/* Two-column layout: sidebar + content */}

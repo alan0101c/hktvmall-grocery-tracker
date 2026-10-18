@@ -3,13 +3,12 @@ import { db } from "@workspace/db";
 import { alertsTable, productsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateAlertBody } from "@workspace/api-zod";
-import { getGlobalDiscountPercent, applyDiscount, effectiveDiscountPercent } from "../lib/settings.js";
+import { applyDiscount, effectiveDiscountPercent } from "../lib/settings.js";
 
 const router: IRouter = Router();
 
 router.get("/triggered", async (_req, res) => {
   try {
-    const discount = await getGlobalDiscountPercent();
     const alerts = await db.select().from(alertsTable);
     const products = await db.select().from(productsTable);
     const productMap = new Map(products.map((p) => [p.id, p]));
@@ -19,10 +18,7 @@ router.get("/triggered", async (_req, res) => {
         const product = productMap.get(a.productId);
         if (!product) return null;
         const currentPrice = parseFloat(product.currentPrice);
-        const adjustedPrice = applyDiscount(
-          currentPrice,
-          effectiveDiscountPercent(product, discount)
-        );
+        const adjustedPrice = applyDiscount(currentPrice, effectiveDiscountPercent(product));
         const targetPrice = parseFloat(a.targetPrice);
         if (adjustedPrice > targetPrice) return null;
         return {
@@ -51,7 +47,6 @@ router.get("/triggered", async (_req, res) => {
 
 router.get("/", async (_req, res) => {
   try {
-    const discount = await getGlobalDiscountPercent();
     const alerts = await db.select().from(alertsTable);
     const products = await db.select().from(productsTable);
     const productMap = new Map(products.map((p) => [p.id, p]));
@@ -59,10 +54,9 @@ router.get("/", async (_req, res) => {
     const result = alerts.map((a) => {
       const product = productMap.get(a.productId);
       const currentPrice = product ? parseFloat(product.currentPrice) : 0;
-      const adjustedPrice = applyDiscount(
-        currentPrice,
-        product ? effectiveDiscountPercent(product, discount) : discount
-      );
+      const adjustedPrice = product
+        ? applyDiscount(currentPrice, effectiveDiscountPercent(product))
+        : currentPrice;
       const targetPrice = parseFloat(a.targetPrice);
       return {
         id: a.id,
@@ -102,11 +96,9 @@ router.post("/", async (req, res) => {
       .where(eq(productsTable.id, body.productId));
     const product = products[0];
     const currentPrice = product ? parseFloat(product.currentPrice) : 0;
-    const discount = await getGlobalDiscountPercent();
-    const adjustedPrice = applyDiscount(
-      currentPrice,
-      product ? effectiveDiscountPercent(product, discount) : discount
-    );
+    const adjustedPrice = product
+      ? applyDiscount(currentPrice, effectiveDiscountPercent(product))
+      : currentPrice;
     const targetPrice = parseFloat(alert.targetPrice);
 
     res.status(201).json({

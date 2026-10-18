@@ -92,8 +92,6 @@ export function ProductDetailModal({ productId, onClose }: ProductDetailModalPro
   // but it must never be preferred over the real current price.
   const effectivePrice = product?.adjustedPrice ?? product?.currentPrice ?? null;
 
-  const globalDiscountPercent = product?.globalDiscountPercent ?? 0;
-
   let gapPercent: number | null = null;
   let gapLabel: string | null = null;
   if (historicalLow != null && effectivePrice != null) {
@@ -147,15 +145,11 @@ export function ProductDetailModal({ productId, onClose }: ProductDetailModalPro
                   {product.plusPrice != null && (
                     <p className="text-xs text-[#00b050] font-medium mt-1">Plus: {formatHKD(product.plusPrice)}</p>
                   )}
-                  {product.extraDiscountPercent != null && product.extraDiscountPercent > 0 ? (
+                  {product.extraDiscountPercent != null && product.extraDiscountPercent > 0 && (
                     <p className="text-xs text-rose-600 font-medium mt-1" title={product.extraDiscountLabel ?? undefined}>
                       額外 -{product.extraDiscountPercent}% applied{product.extraDiscountLabel ? ` (${product.extraDiscountLabel})` : ""} (listed: {formatHKD(product.currentPrice)})
                     </p>
-                  ) : globalDiscountPercent > 0 && product.adjustedPrice != null ? (
-                    <p className="text-xs text-amber-600 font-medium mt-1">
-                      全場 -{globalDiscountPercent}% applied (listed: {formatHKD(product.currentPrice)})
-                    </p>
-                  ) : null}
+                  )}
                 </div>
                 <div className="bg-muted/50 p-4 rounded-2xl border border-border/50">
                   <p className="text-sm text-muted-foreground font-medium mb-1">Alert Target</p>

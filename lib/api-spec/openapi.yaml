@@ -17,8 +17,6 @@ tags:
     description: Price alert management
   - name: scheduler
     description: Scheduler configuration and status
-  - name: settings
-    description: App-wide settings (e.g. global discount adjustment)
 paths:
   /healthz:
     get:
@@ -375,36 +373,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/SchedulerStatus"
 
-  /settings:
-    get:
-      operationId: getAppSettings
-      tags: [settings]
-      summary: Get app-wide settings
-      responses:
-        "200":
-          description: App settings
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AppSettings"
-    put:
-      operationId: updateAppSettings
-      tags: [settings]
-      summary: Update app-wide settings (global discount adjustment)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateSettingsRequest"
-      responses:
-        "200":
-          description: Updated settings
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AppSettings"
-
 components:
   schemas:
     HealthStatus:
@@ -488,21 +456,16 @@ components:
           type: number
           nullable: true
           description: >-
-            Effective price after the applicable discount: the product's own
-            extra-off campaign tag (extraDiscountPercent) when present, otherwise
-            the app-wide global discount. Equals currentPrice when neither is set.
-        globalDiscountPercent:
-          type: number
-          description: The app-wide discount percentage in effect when this response was built (0 = none)
+            Effective price after the product's own extra-off campaign tag
+            (extraDiscountPercent). Equals currentPrice when the product has no tag.
         extraDiscountPercent:
           type: number
           nullable: true
           description: >-
             Per-product extra-off rate parsed from the product's own HKTVmall
-            campaign price tag (15 = 「今日85折」, 5 = 「今日95折」). Takes precedence
-            over globalDiscountPercent in adjustedPrice. Null when the product
-            has no tag, is not campaign-eligible, or has not been re-scraped
-            since this field was introduced.
+            campaign price tag (15 = 「今日85折」, 5 = 「今日95折」); drives adjustedPrice.
+            Null when the product has no tag, is not campaign-eligible, or has
+            not been re-scraped since this field was introduced.
         extraDiscountLabel:
           type: string
           nullable: true
@@ -662,7 +625,7 @@ components:
         adjustedPrice:
           type: number
           nullable: true
-          description: Effective price after the applicable discount (product's own extra-off tag first, global discount as fallback)
+          description: Effective price after the product's own extra-off campaign tag (equals currentPrice when no tag)
         isTriggered:
           type: boolean
           description: Whether the adjusted price is at or below the target price
@@ -689,11 +652,11 @@ components:
         adjustedPrice:
           type: number
           nullable: true
-          description: Effective price after the applicable discount (product's own extra-off tag first, global discount as fallback)
+          description: Effective price after the product's own extra-off campaign tag (equals currentPrice when no tag)
         extraDiscountPercent:
           type: number
           nullable: true
-          description: The product's own extra-off campaign rate (15 = 「今日85折」, 5 = 「今日95折」) when it triggered the alert; null when the global discount (or no discount) applies
+          description: The product's own extra-off campaign rate (15 = 「今日85折」, 5 = 「今日95折」) when it triggered the alert; null when no discount applies
         targetPrice:
           type: number
         savings:
@@ -805,27 +768,6 @@ components:
         targetPrice:
           type: number
       required: [productId, targetPrice]
-
-    AppSettings:
-      type: object
-      properties:
-        globalDiscountPercent:
-          type: number
-          description: App-wide discount percentage applied on top of listed prices (e.g. 15 for a sitewide 15% off promotion). 0 = no adjustment.
-        updatedAt:
-          type: string
-          format: date-time
-      required: [globalDiscountPercent]
-
-    UpdateSettingsRequest:
-      type: object
-      properties:
-        globalDiscountPercent:
-          type: number
-          minimum: 0
-          maximum: 100
-          description: App-wide discount percentage (0–100)
-      required: [globalDiscountPercent]
 
     SuccessResponse:
       type: object

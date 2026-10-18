@@ -7,7 +7,6 @@
  */
 
 export * from "./alert";
-export * from "./appSettings";
 export * from "./createAlertRequest";
 export * from "./createProductTypeRequest";
 export * from "./errorResponse";
@@ -29,4 +28,3 @@ export * from "./updateProductTypeRequest";
 export * from "./updateProductTypeRequestListingsItem";
 export * from "./updateProductUnitRequest";
 export * from "./updateSchedulerRequest";
-export * from "./updateSettingsRequest";

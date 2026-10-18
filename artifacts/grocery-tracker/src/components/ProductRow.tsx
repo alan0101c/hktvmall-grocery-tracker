@@ -50,11 +50,8 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
 
   const displayPrice = product.adjustedPrice ?? product.currentPrice;
   const extraDiscountPercent = product.extraDiscountPercent ?? null;
-  const globalDiscountPercent = product.globalDiscountPercent ?? 0;
-  // The product's own campaign tag (額外85/95折) wins; the app-wide discount
-  // only shows when the product has no tag.
-  const activeDiscountPercent =
-    extraDiscountPercent != null && extraDiscountPercent > 0 ? extraDiscountPercent : globalDiscountPercent;
+  // Only the product's own campaign tag (額外85/95折) adjusts the price.
+  const activeDiscountPercent = extraDiscountPercent != null && extraDiscountPercent > 0 ? extraDiscountPercent : 0;
   const hasActiveDiscount = activeDiscountPercent > 0 && displayPrice < product.currentPrice;
 
   const hasDiscount = product.originalPrice && displayPrice < product.originalPrice;
@@ -161,15 +158,12 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
                   )}
                   {hasActiveDiscount && (
                     <span
-                      className={cn(
-                        "inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-bold rounded-md",
-                        extraDiscountPercent != null ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"
-                      )}
+                      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-bold rounded-md"
                       title={product.extraDiscountLabel ?? undefined}
                     >
                       <BadgePercent className="w-3 h-3" />
                       -{activeDiscountPercent}%
-                      {extraDiscountPercent != null && product.extraDiscountLabel && (
+                      {product.extraDiscountLabel && (
                         <span className="font-normal">· {product.extraDiscountLabel}</span>
                       )}
                     </span>
