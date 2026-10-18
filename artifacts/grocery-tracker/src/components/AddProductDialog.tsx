@@ -7,7 +7,7 @@ import {
 import {
   useSearchHKTVMall, useTrackProduct, useUpdateProductUnit,
   useGetProductTypes, useCreateProductType,
-  getGetProductsQueryKey, getGetProductTypesQueryKey,
+  getGetProductsQueryKey, getGetProductTypesQueryKey, getSearchHKTVMallQueryKey,
   type Product,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -45,7 +45,10 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
   const { toast } = useToast();
 
   const { data: searchResults, isLoading: isSearching, refetch: performSearch, isFetching } =
-    useSearchHKTVMall({ q: searchQuery }, { query: { enabled: false } });
+    useSearchHKTVMall(
+      { q: searchQuery },
+      { query: { queryKey: getSearchHKTVMallQueryKey({ q: searchQuery }), enabled: false } }
+    );
 
   const { data: productTypes = [] } = useGetProductTypes();
   const trackMutation = useTrackProduct();

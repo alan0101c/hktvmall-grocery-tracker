@@ -255,7 +255,7 @@ export function ProductDetailModal({ productId, onClose }: ProductDetailModalPro
                           stroke="hsl(var(--primary))"
                           strokeWidth={3}
                           dot={(props) => <CustomDot key={`dot-price-${props.index}`} {...props} stroke="hsl(var(--primary))" />}
-                          activeDot={(props) => <CustomActiveDot key={`adot-price-${props.index}`} {...props} stroke="hsl(var(--primary))" />}
+                          activeDot={(props: CustomDotProps & { index?: number }) => <CustomActiveDot key={`adot-price-${props.index}`} {...props} stroke="hsl(var(--primary))" />}
                         />
                         {hasPlusPrice && (
                           <Line
@@ -266,7 +266,7 @@ export function ProductDetailModal({ productId, onClose }: ProductDetailModalPro
                             strokeDasharray="5 3"
                             connectNulls={false}
                             dot={(props) => <CustomDot key={`dot-plus-${props.index}`} {...props} stroke="#00b050" />}
-                            activeDot={(props) => <CustomActiveDot key={`adot-plus-${props.index}`} {...props} stroke="#00b050" />}
+                            activeDot={(props: CustomDotProps & { index?: number }) => <CustomActiveDot key={`adot-plus-${props.index}`} {...props} stroke="#00b050" />}
                           />
                         )}
                       </LineChart>
