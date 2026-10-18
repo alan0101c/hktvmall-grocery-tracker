@@ -12,6 +12,13 @@ export interface ScrapedProduct {
   /** HKTVmall Plus member price. Plus was cancelled by HKTVmall, so new scrapes always leave this undefined. */
   plusPrice?: number;
   promotionTexts: string[];
+  /**
+   * Extra-off campaign parsed from the product's OWN price tag
+   * (div.marketing-label-description, NOT the .marketingLabel cross-sell
+   * carousel). percent is the OFF percentage: 「今日85折」→ 15, 「今日95折」→ 5.
+   * null = the page shows no campaign tag for this product.
+   */
+  extraDiscount: { percent: number; label: string } | null;
   currency: string;
   imageUrl?: string;
   productUrl: string;
@@ -281,6 +288,23 @@ export async function scrapeProductByUrl(
           (t) => !promotionTexts.some((o) => o !== t && o.length < t.length && t.includes(o))
         );
 
+        // Extra-off campaign tag for THIS product only. The own-product block
+        // is div.marketing-label-description; the cross-sell carousel uses
+        // div.marketingLabel (camelCase, no hyphen) and must NOT be matched —
+        // it mixes in other products' tags. 「今日85折」→ pay 85 → 15% OFF.
+        const extraTagEl = document.querySelector(
+          ".marketing-label-description .label-title"
+        );
+        const extraTagLabel = (extraTagEl?.textContent || "").trim();
+        let extraDiscount: { percent: number; label: string } | null = null;
+        const extraTagMatch = extraTagLabel.match(/(\d{2})\s*折/);
+        if (extraTagMatch) {
+          const payPercent = parseInt(extraTagMatch[1], 10);
+          if (payPercent > 0 && payPercent < 100) {
+            extraDiscount = { percent: 100 - payPercent, label: extraTagLabel };
+          }
+        }
+
         // Best-effort category from the breadcrumb trail. Absent on many
         // pages — callers fall back to the category they already have.
         let categoryName = "";
@@ -316,6 +340,7 @@ export async function scrapeProductByUrl(
           isOutOfStock,
           isSpecialPrice,
           promotionTexts: cleanedPromoTexts,
+          extraDiscount,
         };
       });
 
@@ -342,6 +367,7 @@ export async function scrapeProductByUrl(
         productUrl: fullUrl,
         sku: extractSku(fullUrl),
         inStock: !data.isOutOfStock,
+        extraDiscount: data.extraDiscount,
       };
     } catch (err) {
       if (err instanceof ProductUnavailableError) throw err;
@@ -435,6 +461,9 @@ export async function searchHKTVMall(
           productUrl,
           sku: hit.code,
           inStock: hit.hasStock === true,
+          // Algolia hits don't expose the campaign price-tag text (only an
+          // opaque imageBubbleCampaigns ID) — filled in on the next page scrape.
+          extraDiscount: null,
         };
       })
       .filter((x): x is ScrapedProduct => x !== null);

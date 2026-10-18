@@ -5,7 +5,7 @@ import { eq, ilike, and, or } from "drizzle-orm";
 import { GetProductsQueryParams, TrackProductBody } from "@workspace/api-zod";
 import { scrapeProductByUrl, searchHKTVMall, ProductUnavailableError } from "../lib/scraper.js";
 import { refreshProduct, refreshAllProducts } from "../lib/refreshService.js";
-import { getGlobalDiscountPercent, applyDiscount } from "../lib/settings.js";
+import { getGlobalDiscountPercent, applyDiscount, effectiveDiscountPercent } from "../lib/settings.js";
 
 const router: IRouter = Router();
 
@@ -17,7 +17,10 @@ function buildProductResponse(
   globalDiscountPercent = 0
 ) {
   const currentPrice = parseFloat(p.currentPrice);
-  const adjustedPrice = applyDiscount(currentPrice, globalDiscountPercent);
+  // The product's own scraped campaign tag (extra 85/95折) takes precedence
+  // over the app-wide global discount.
+  const effectiveDiscount = effectiveDiscountPercent(p, globalDiscountPercent);
+  const adjustedPrice = applyDiscount(currentPrice, effectiveDiscount);
   const alertPrice = alertMap.get(p.id) ?? null;
   const isBelowAlert = alertPrice !== null && adjustedPrice <= alertPrice;
   const prevPrice = prevPriceMap?.get(p.id);
@@ -44,6 +47,8 @@ function buildProductResponse(
     currentPrice,
     adjustedPrice,
     globalDiscountPercent,
+    extraDiscountPercent: p.extraDiscountPercent ? parseFloat(p.extraDiscountPercent) : null,
+    extraDiscountLabel: p.extraDiscountLabel ?? null,
     originalPrice: p.originalPrice ? parseFloat(p.originalPrice) : undefined,
     plusPrice: p.plusPrice ? parseFloat(p.plusPrice) : null,
     promotionTexts,
@@ -167,6 +172,8 @@ router.post("/track", async (req, res) => {
       : await db.select().from(productsTable).where(eq(productsTable.productUrl, productUrl));
 
     const scrapedPromotionTexts = scraped?.promotionTexts && scraped.promotionTexts.length > 0 ? scraped.promotionTexts : null;
+    const scrapedExtraDiscountPercent = scraped?.extraDiscount ? String(scraped.extraDiscount.percent) : null;
+    const scrapedExtraDiscountLabel = scraped?.extraDiscount?.label ?? null;
 
     let productId: number;
     if (existing.length > 0) {
@@ -195,6 +202,8 @@ router.post("/track", async (req, res) => {
           originalPrice: scraped?.originalPrice?.toString() ?? null,
           plusPrice: scraped?.plusPrice?.toString() ?? null,
           promotionTexts: scrapedPromotionTexts,
+          extraDiscountPercent: scrapedExtraDiscountPercent,
+          extraDiscountLabel: scrapedExtraDiscountLabel,
           imageUrl: scraped?.imageUrl,
           inStock: scraped?.inStock ?? true,
           lastUpdated: new Date(),
@@ -211,6 +220,8 @@ router.post("/track", async (req, res) => {
         originalPrice: scraped?.originalPrice?.toString() ?? null,
         plusPrice: scraped?.plusPrice?.toString() ?? null,
         promotionTexts: scrapedPromotionTexts,
+        extraDiscountPercent: scrapedExtraDiscountPercent,
+        extraDiscountLabel: scrapedExtraDiscountLabel,
         inStock: scraped?.inStock ?? true,
       });
     } else {
@@ -225,6 +236,8 @@ router.post("/track", async (req, res) => {
           originalPrice: scraped?.originalPrice?.toString(),
           plusPrice: scraped?.plusPrice?.toString() ?? null,
           promotionTexts: scrapedPromotionTexts,
+          extraDiscountPercent: scrapedExtraDiscountPercent,
+          extraDiscountLabel: scrapedExtraDiscountLabel,
           currency: "HKD",
           imageUrl: scraped?.imageUrl,
           productUrl: productUrl,
@@ -244,6 +257,8 @@ router.post("/track", async (req, res) => {
         originalPrice: scraped?.originalPrice?.toString() ?? null,
         plusPrice: scraped?.plusPrice?.toString() ?? null,
         promotionTexts: scrapedPromotionTexts,
+        extraDiscountPercent: scrapedExtraDiscountPercent,
+        extraDiscountLabel: scrapedExtraDiscountLabel,
         inStock: scraped?.inStock ?? true,
       });
     }
@@ -262,7 +277,6 @@ router.post("/track", async (req, res) => {
     const allTypes = await db.select().from(productTypesTable);
     const typesMap = new Map(allTypes.map((t) => [t.id, { name: t.name, unitLabel: t.unitLabel }]));
     const globalDiscountPercent = await getGlobalDiscountPercent();
-
     res.status(201).json(buildProductResponse(products[0], alertMap, undefined, typesMap, globalDiscountPercent));
   } catch (err) {
     if (err instanceof ProductUnavailableError) {
@@ -288,6 +302,7 @@ router.get("/", async (req, res) => {
 
     const allTypes = await db.select().from(productTypesTable);
     const typesMap = new Map(allTypes.map((t) => [t.id, { name: t.name, unitLabel: t.unitLabel }]));
+    const globalDiscountPercent = await getGlobalDiscountPercent();
 
     const conditions = [];
     if (query.search) {
@@ -323,8 +338,6 @@ router.get("/", async (req, res) => {
         prevPriceMap.set(p.id, parseFloat(history[history.length - 2].price));
       }
     }
-
-    const globalDiscountPercent = await getGlobalDiscountPercent();
 
     const result = products
       .map((p) => buildProductResponse(p, alertMap, prevPriceMap, typesMap, globalDiscountPercent))
@@ -362,7 +375,6 @@ router.get("/:id", async (req, res) => {
     const allTypes = await db.select().from(productTypesTable);
     const typesMap = new Map(allTypes.map((t) => [t.id, { name: t.name, unitLabel: t.unitLabel }]));
     const globalDiscountPercent = await getGlobalDiscountPercent();
-
     res.json({
       ...buildProductResponse(p, alertMap, undefined, typesMap, globalDiscountPercent),
       priceHistory: history.map((h) => ({
@@ -371,6 +383,8 @@ router.get("/:id", async (req, res) => {
         originalPrice: h.originalPrice ? parseFloat(h.originalPrice) : undefined,
         plusPrice: h.plusPrice ? parseFloat(h.plusPrice) : null,
         promotionTexts: h.promotionTexts ?? [],
+        extraDiscountPercent: h.extraDiscountPercent ? parseFloat(h.extraDiscountPercent) : null,
+        extraDiscountLabel: h.extraDiscountLabel ?? null,
         inStock: h.inStock,
         recordedAt: h.recordedAt,
       })),
@@ -396,7 +410,6 @@ router.post("/:id/refresh", async (req, res) => {
     const allTypes = await db.select().from(productTypesTable);
     const typesMap = new Map(allTypes.map((t) => [t.id, { name: t.name, unitLabel: t.unitLabel }]));
     const globalDiscountPercent = await getGlobalDiscountPercent();
-
     res.json(buildProductResponse(products[0], alertMap, undefined, typesMap, globalDiscountPercent));
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -441,7 +454,6 @@ router.put("/:id/unit", async (req, res) => {
     const allTypes = await db.select().from(productTypesTable);
     const typesMap = new Map(allTypes.map((t) => [t.id, { name: t.name, unitLabel: t.unitLabel }]));
     const globalDiscountPercent = await getGlobalDiscountPercent();
-
     res.json(buildProductResponse(products[0], alertMap, undefined, typesMap, globalDiscountPercent));
   } catch (err) {
     res.status(500).json({ error: String(err) });

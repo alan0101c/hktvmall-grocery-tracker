@@ -12,7 +12,7 @@ export interface Alert {
   productName: string;
   targetPrice: number;
   currentPrice: number;
-  /** Effective price after the global discount adjustment */
+  /** Effective price after the applicable discount (product's own extra-off tag first, global discount as fallback) */
   adjustedPrice?: number | null;
   /** Whether the adjusted price is at or below the target price */
   isTriggered: boolean;

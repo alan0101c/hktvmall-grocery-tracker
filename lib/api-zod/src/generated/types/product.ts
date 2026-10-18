@@ -14,10 +14,14 @@ export interface Product {
   brand?: string;
   category?: string;
   currentPrice: number;
-  /** Effective price after the global discount adjustment (equals currentPrice when no discount is set) */
+  /** Effective price after the applicable discount: the product's own extra-off campaign tag (extraDiscountPercent) when present, otherwise the app-wide global discount. Equals currentPrice when neither is set. */
   adjustedPrice?: number | null;
   /** The app-wide discount percentage in effect when this response was built (0 = none) */
   globalDiscountPercent?: number;
+  /** Per-product extra-off rate parsed from the product's own HKTVmall campaign price tag (15 = 「今日85折」, 5 = 「今日95折」). Takes precedence over globalDiscountPercent in adjustedPrice. Null when the product has no tag, is not campaign-eligible, or has not been re-scraped since this field was introduced. */
+  extraDiscountPercent?: number | null;
+  /** Raw tag text the rate was parsed from, e.g. 「今日85折$99自取/$699送貨」 */
+  extraDiscountLabel?: string | null;
   originalPrice?: number;
   /** Deprecated — HKTVmall cancelled the Plus membership. Always null for newly scraped/refreshed products; may still be present on legacy rows. */
   plusPrice?: number | null;

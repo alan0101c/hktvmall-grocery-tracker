@@ -24,6 +24,16 @@ export const productsTable = pgTable("products", {
   inStock: boolean("in_stock").notNull().default(true),
   plusPrice: numeric("plus_price", { precision: 10, scale: 2 }),
   promotionTexts: jsonb("promotion_texts").$type<string[]>(),
+  /**
+   * Per-product extra-off campaign parsed from the product's own HKTVmall price
+   * tag (div.marketing-label-description): 15 = 「今日85折」, 5 = 「今日95折」.
+   * Null = no tag on the page / not campaign-eligible. Takes precedence over
+   * the app-wide global discount when computing the effective price. On
+   * price_history it is frozen per scrape (campaign tags are day-scoped).
+   */
+  extraDiscountPercent: numeric("extra_discount_percent", { precision: 5, scale: 2 }),
+  /** Raw tag text the rate was parsed from, e.g. 「今日85折$99自取/$699送貨」. */
+  extraDiscountLabel: text("extra_discount_label"),
   productTypeId: integer("product_type_id").references(() => productTypesTable.id, { onDelete: "set null" }),
   packageQuantity: numeric("package_quantity", { precision: 10, scale: 3 }),
   /**
@@ -53,6 +63,16 @@ export const priceHistoryTable = pgTable("price_history", {
   originalPrice: numeric("original_price", { precision: 10, scale: 2 }),
   plusPrice: numeric("plus_price", { precision: 10, scale: 2 }),
   promotionTexts: jsonb("promotion_texts").$type<string[]>(),
+  /**
+   * Per-product extra-off campaign parsed from the product's own HKTVmall price
+   * tag (div.marketing-label-description): 15 = 「今日85折」, 5 = 「今日95折」.
+   * Null = no tag on the page / not campaign-eligible. Takes precedence over
+   * the app-wide global discount when computing the effective price. On
+   * price_history it is frozen per scrape (campaign tags are day-scoped).
+   */
+  extraDiscountPercent: numeric("extra_discount_percent", { precision: 5, scale: 2 }),
+  /** Raw tag text the rate was parsed from, e.g. 「今日85折$99自取/$699送貨」. */
+  extraDiscountLabel: text("extra_discount_label"),
   inStock: boolean("in_stock").notNull().default(true),
   recordedAt: timestamp("recorded_at").notNull().defaultNow(),
 });

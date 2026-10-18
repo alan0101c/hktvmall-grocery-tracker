@@ -49,8 +49,13 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
   };
 
   const displayPrice = product.adjustedPrice ?? product.currentPrice;
+  const extraDiscountPercent = product.extraDiscountPercent ?? null;
   const globalDiscountPercent = product.globalDiscountPercent ?? 0;
-  const hasGlobalDiscount = globalDiscountPercent > 0 && displayPrice < product.currentPrice;
+  // The product's own campaign tag (額外85/95折) wins; the app-wide discount
+  // only shows when the product has no tag.
+  const activeDiscountPercent =
+    extraDiscountPercent != null && extraDiscountPercent > 0 ? extraDiscountPercent : globalDiscountPercent;
+  const hasActiveDiscount = activeDiscountPercent > 0 && displayPrice < product.currentPrice;
 
   const hasDiscount = product.originalPrice && displayPrice < product.originalPrice;
   const discountPercent = hasDiscount
@@ -148,16 +153,25 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
               ) : (
                 <>
                   <span className="text-xl font-bold text-foreground">{formatHKD(displayPrice)}</span>
-                  {hasGlobalDiscount && (
+                  {hasActiveDiscount && (
                     <span className="text-xs text-muted-foreground line-through">{formatHKD(product.currentPrice)}</span>
                   )}
                   {hasDiscount && (
                     <span className="text-[10px] text-muted-foreground/60 line-through">{formatHKD(product.originalPrice)}</span>
                   )}
-                  {hasGlobalDiscount && (
-                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-md">
+                  {hasActiveDiscount && (
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-bold rounded-md",
+                        extraDiscountPercent != null ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"
+                      )}
+                      title={product.extraDiscountLabel ?? undefined}
+                    >
                       <BadgePercent className="w-3 h-3" />
-                      -{globalDiscountPercent}%
+                      -{activeDiscountPercent}%
+                      {extraDiscountPercent != null && product.extraDiscountLabel && (
+                        <span className="font-normal">· {product.extraDiscountLabel}</span>
+                      )}
                     </span>
                   )}
                 </>

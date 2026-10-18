@@ -49,3 +49,18 @@ export function applyDiscount(price: number, discountPercent: number): number {
   if (!discountPercent || discountPercent <= 0) return price;
   return Math.round(price * (1 - discountPercent / 100) * 100) / 100;
 }
+
+/**
+ * The discount percentage that actually applies to a product: the per-product
+ * extra-off rate scraped from its own HKTVmall campaign price tag wins; when
+ * the product has no tag (null, e.g. not yet re-scraped or not eligible), the
+ * app-wide global discount applies as the fallback.
+ */
+export function effectiveDiscountPercent(
+  product: { extraDiscountPercent: string | null },
+  globalDiscountPercent: number
+): number {
+  return product.extraDiscountPercent != null
+    ? parseFloat(product.extraDiscountPercent)
+    : globalDiscountPercent;
+}

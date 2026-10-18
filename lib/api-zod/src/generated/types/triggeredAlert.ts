@@ -13,8 +13,10 @@ export interface TriggeredAlert {
   productUrl?: string;
   imageUrl?: string;
   currentPrice: number;
-  /** Effective price after the global discount adjustment */
+  /** Effective price after the applicable discount (product's own extra-off tag first, global discount as fallback) */
   adjustedPrice?: number | null;
+  /** The product's own extra-off campaign rate (15 = 「今日85折」, 5 = 「今日95折」) when it triggered the alert; null when the global discount (or no discount) applies */
+  extraDiscountPercent?: number | null;
   targetPrice: number;
   /** Amount saved versus the adjusted price (targetPrice - adjustedPrice) */
   savings: number;

@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { alertsTable, productsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateAlertBody } from "@workspace/api-zod";
-import { getGlobalDiscountPercent, applyDiscount } from "../lib/settings.js";
+import { getGlobalDiscountPercent, applyDiscount, effectiveDiscountPercent } from "../lib/settings.js";
 
 const router: IRouter = Router();
 
@@ -19,7 +19,10 @@ router.get("/triggered", async (_req, res) => {
         const product = productMap.get(a.productId);
         if (!product) return null;
         const currentPrice = parseFloat(product.currentPrice);
-        const adjustedPrice = applyDiscount(currentPrice, discount);
+        const adjustedPrice = applyDiscount(
+          currentPrice,
+          effectiveDiscountPercent(product, discount)
+        );
         const targetPrice = parseFloat(a.targetPrice);
         if (adjustedPrice > targetPrice) return null;
         return {
@@ -30,6 +33,9 @@ router.get("/triggered", async (_req, res) => {
           imageUrl: product.imageUrl ?? undefined,
           currentPrice,
           adjustedPrice,
+          extraDiscountPercent: product.extraDiscountPercent
+            ? parseFloat(product.extraDiscountPercent)
+            : null,
           targetPrice,
           savings: Math.round((targetPrice - adjustedPrice) * 100) / 100,
           currency: product.currency,
@@ -53,7 +59,10 @@ router.get("/", async (_req, res) => {
     const result = alerts.map((a) => {
       const product = productMap.get(a.productId);
       const currentPrice = product ? parseFloat(product.currentPrice) : 0;
-      const adjustedPrice = applyDiscount(currentPrice, discount);
+      const adjustedPrice = applyDiscount(
+        currentPrice,
+        product ? effectiveDiscountPercent(product, discount) : discount
+      );
       const targetPrice = parseFloat(a.targetPrice);
       return {
         id: a.id,
@@ -94,7 +103,10 @@ router.post("/", async (req, res) => {
     const product = products[0];
     const currentPrice = product ? parseFloat(product.currentPrice) : 0;
     const discount = await getGlobalDiscountPercent();
-    const adjustedPrice = applyDiscount(currentPrice, discount);
+    const adjustedPrice = applyDiscount(
+      currentPrice,
+      product ? effectiveDiscountPercent(product, discount) : discount
+    );
     const targetPrice = parseFloat(alert.targetPrice);
 
     res.status(201).json({

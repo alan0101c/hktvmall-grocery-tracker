@@ -14,6 +14,10 @@ export interface PriceRecord {
   plusPrice?: number | null;
   /** All promotion texts at time of recording (always present, may be empty) */
   promotionTexts?: string[];
+  /** Per-product extra-off campaign rate frozen at recording time (15 = 「今日85折」, 5 = 「今日95折」; null = no tag on the page then). */
+  extraDiscountPercent?: number | null;
+  /** Raw tag text at time of recording */
+  extraDiscountLabel?: string | null;
   /** Whether the product was in stock at time of recording */
   inStock: boolean;
   recordedAt: Date;

@@ -51,6 +51,8 @@ export async function refreshProduct(productId: number): Promise<{ success: bool
     const priceChange = newPrice - oldPrice;
 
     const promotionTexts = scraped.promotionTexts.length > 0 ? scraped.promotionTexts : null;
+    const extraDiscountPercent = scraped.extraDiscount ? String(scraped.extraDiscount.percent) : null;
+    const extraDiscountLabel = scraped.extraDiscount?.label ?? null;
 
     await db
       .update(productsTable)
@@ -62,6 +64,8 @@ export async function refreshProduct(productId: number): Promise<{ success: bool
         originalPrice: scraped.originalPrice?.toString() ?? null,
         plusPrice: scraped.plusPrice?.toString() ?? null,
         promotionTexts,
+        extraDiscountPercent,
+        extraDiscountLabel,
         imageUrl: scraped.imageUrl ?? product.imageUrl,
         inStock: scraped.inStock,
         nameZh: scraped.nameZh ?? product.nameZh,
@@ -80,6 +84,8 @@ export async function refreshProduct(productId: number): Promise<{ success: bool
       originalPrice: scraped.originalPrice?.toString() ?? null,
       plusPrice: scraped.plusPrice?.toString() ?? null,
       promotionTexts,
+      extraDiscountPercent,
+      extraDiscountLabel,
       inStock: scraped.inStock ?? true,
     });
 

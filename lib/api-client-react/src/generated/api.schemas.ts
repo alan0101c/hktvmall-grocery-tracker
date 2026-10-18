@@ -54,10 +54,14 @@ export interface Product {
   brand?: string;
   category?: string;
   currentPrice: number;
-  /** Effective price after the global discount adjustment (equals currentPrice when no discount is set) */
+  /** Effective price after the applicable discount: the product's own extra-off campaign tag (extraDiscountPercent) when present, otherwise the app-wide global discount. Equals currentPrice when neither is set. */
   adjustedPrice?: number | null;
   /** The app-wide discount percentage in effect when this response was built (0 = none) */
   globalDiscountPercent?: number;
+  /** Per-product extra-off rate parsed from the product's own HKTVmall campaign price tag (15 = 「今日85折」, 5 = 「今日95折」). Takes precedence over globalDiscountPercent in adjustedPrice. Null when the product has no tag, is not campaign-eligible, or has not been re-scraped since this field was introduced. */
+  extraDiscountPercent?: number | null;
+  /** Raw tag text the rate was parsed from, e.g. 「今日85折$99自取/$699送貨」 */
+  extraDiscountLabel?: string | null;
   originalPrice?: number;
   /** Deprecated — HKTVmall cancelled the Plus membership. Always null for newly scraped/refreshed products; may still be present on legacy rows. */
   plusPrice?: number | null;
@@ -99,6 +103,10 @@ export interface PriceRecord {
   plusPrice?: number | null;
   /** All promotion texts at time of recording (always present, may be empty) */
   promotionTexts?: string[];
+  /** Per-product extra-off campaign rate frozen at recording time (15 = 「今日85折」, 5 = 「今日95折」; null = no tag on the page then). */
+  extraDiscountPercent?: number | null;
+  /** Raw tag text at time of recording */
+  extraDiscountLabel?: string | null;
   /** Whether the product was in stock at time of recording */
   inStock: boolean;
   recordedAt: string;
@@ -123,7 +131,7 @@ export interface Alert {
   productName: string;
   targetPrice: number;
   currentPrice: number;
-  /** Effective price after the global discount adjustment */
+  /** Effective price after the applicable discount (product's own extra-off tag first, global discount as fallback) */
   adjustedPrice?: number | null;
   /** Whether the adjusted price is at or below the target price */
   isTriggered: boolean;
@@ -137,8 +145,10 @@ export interface TriggeredAlert {
   productUrl?: string;
   imageUrl?: string;
   currentPrice: number;
-  /** Effective price after the global discount adjustment */
+  /** Effective price after the applicable discount (product's own extra-off tag first, global discount as fallback) */
   adjustedPrice?: number | null;
+  /** The product's own extra-off campaign rate (15 = 「今日85折」, 5 = 「今日95折」) when it triggered the alert; null when the global discount (or no discount) applies */
+  extraDiscountPercent?: number | null;
   targetPrice: number;
   /** Amount saved versus the adjusted price (targetPrice - adjustedPrice) */
   savings: number;
