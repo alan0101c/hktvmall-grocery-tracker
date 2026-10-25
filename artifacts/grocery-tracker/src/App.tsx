@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { Navbar } from "@/components/layout/Navbar";
+import OverviewPage from "@/pages/Overview";
 import ProductsPage from "@/pages/Products";
 import AlertsPage from "@/pages/Alerts";
 import ProductTypesPage from "@/pages/ProductTypes";
@@ -25,7 +26,8 @@ function Router() {
       <Navbar />
       <div className="flex-grow">
         <Switch>
-          <Route path="/" component={ProductsPage} />
+          <Route path="/" component={OverviewPage} />
+          <Route path="/watchlist" component={ProductsPage} />
           <Route path="/alerts" component={AlertsPage} />
           <Route path="/product-types" component={ProductTypesPage} />
           <Route component={NotFound} />

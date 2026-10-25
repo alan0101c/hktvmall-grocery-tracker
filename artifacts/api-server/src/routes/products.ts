@@ -6,6 +6,7 @@ import { GetProductsQueryParams, TrackProductBody } from "@workspace/api-zod";
 import { scrapeProductByUrl, searchHKTVMall, ProductUnavailableError } from "../lib/scraper.js";
 import { refreshProduct, refreshAllProducts } from "../lib/refreshService.js";
 import { applyDiscount, effectiveDiscountPercent } from "../lib/settings.js";
+import { buildCategoryOverview } from "../lib/overview.js";
 
 const router: IRouter = Router();
 
@@ -136,6 +137,19 @@ async function resolveUnitForAssignment(
   }
   return { unit: type.unitLabel };
 }
+
+router.get("/overview", async (_req, res) => {
+  try {
+    const [types, products, history] = await Promise.all([
+      db.select().from(productTypesTable),
+      db.select().from(productsTable),
+      db.select().from(priceHistoryTable),
+    ]);
+    res.json(buildCategoryOverview(types, products, history));
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
 
 router.post("/track", async (req, res) => {
   try {

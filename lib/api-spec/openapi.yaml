@@ -57,6 +57,21 @@ paths:
                 items:
                   $ref: "#/components/schemas/Product"
 
+  /products/overview:
+    get:
+      operationId: getCategoryOverview
+      tags: [products]
+      summary: Get current and historical unit-price summaries for every category
+      responses:
+        "200":
+          description: One price summary per category
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategoryOverview"
+
   /products/track:
     post:
       operationId: trackProduct
@@ -397,6 +412,47 @@ components:
           type: string
           format: date-time
       required: [id, name, unitLabel, createdAt]
+
+    CategoryOverview:
+      type: object
+      properties:
+        productTypeId:
+          type: integer
+        bigCategory:
+          type: string
+        subCategory:
+          type: string
+        name:
+          type: string
+        cheapestPricePerUnit:
+          type: number
+          nullable: true
+          description: Lowest current effective unit price among available listings
+        productUrl:
+          type: string
+          nullable: true
+          description: HKTVmall URL of the listing with the cheapest current unit price
+        unit:
+          type: string
+        historicalLow:
+          type: number
+          nullable: true
+          description: Lowest effective unit price recorded across all listings in the category
+        historicalLowDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Most recent date on which the historical low was recorded
+      required:
+        - productTypeId
+        - bigCategory
+        - subCategory
+        - name
+        - cheapestPricePerUnit
+        - productUrl
+        - unit
+        - historicalLow
+        - historicalLowDate
 
     CreateProductTypeRequest:
       type: object

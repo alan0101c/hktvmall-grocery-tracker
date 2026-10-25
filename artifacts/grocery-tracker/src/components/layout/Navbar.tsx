@@ -1,12 +1,13 @@
 import { Link, useLocation } from "wouter";
-import { Leaf, Bell, Package2, Layers } from "lucide-react";
+import { Leaf, Bell, Package2, Layers, LayoutDashboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Navbar() {
   const [location] = useLocation();
 
   const links = [
-    { href: "/", label: "Watchlist", icon: Package2 },
+    { href: "/", label: "Overview", icon: LayoutDashboard },
+    { href: "/watchlist", label: "Watchlist", icon: Package2 },
     { href: "/alerts", label: "Alerts", icon: Bell },
     { href: "/product-types", label: "Categories", icon: Layers },
   ];

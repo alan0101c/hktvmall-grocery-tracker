@@ -124,6 +124,40 @@ export const GetProductsResponseItem = zod.object({
 export const GetProductsResponse = zod.array(GetProductsResponseItem);
 
 /**
+ * @summary Get current and historical unit-price summaries for every category
+ */
+export const GetCategoryOverviewResponseItem = zod.object({
+  productTypeId: zod.number(),
+  bigCategory: zod.string(),
+  subCategory: zod.string(),
+  name: zod.string(),
+  cheapestPricePerUnit: zod
+    .number()
+    .nullable()
+    .describe("Lowest current effective unit price among available listings"),
+  productUrl: zod
+    .string()
+    .nullable()
+    .describe(
+      "HKTVmall URL of the listing with the cheapest current unit price",
+    ),
+  unit: zod.string(),
+  historicalLow: zod
+    .number()
+    .nullable()
+    .describe(
+      "Lowest effective unit price recorded across all listings in the category",
+    ),
+  historicalLowDate: zod
+    .date()
+    .nullable()
+    .describe("Most recent date on which the historical low was recorded"),
+});
+export const GetCategoryOverviewResponse = zod.array(
+  GetCategoryOverviewResponseItem,
+);
+
+/**
  * @summary Add a product to the watchlist by HKTVMall URL
  */
 export const TrackProductBody = zod.object({

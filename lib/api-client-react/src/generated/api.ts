@@ -18,6 +18,7 @@ import type {
 
 import type {
   Alert,
+  CategoryOverview,
   CreateAlertRequest,
   CreateProductTypeRequest,
   ErrorResponse,
@@ -208,6 +209,81 @@ export function useGetProducts<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetProductsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get current and historical unit-price summaries for every category
+ */
+export const getGetCategoryOverviewUrl = () => {
+  return `/api/products/overview`;
+};
+
+export const getCategoryOverview = async (
+  options?: RequestInit,
+): Promise<CategoryOverview[]> => {
+  return customFetch<CategoryOverview[]>(getGetCategoryOverviewUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCategoryOverviewQueryKey = () => {
+  return [`/api/products/overview`] as const;
+};
+
+export const getGetCategoryOverviewQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCategoryOverview>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCategoryOverview>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCategoryOverviewQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCategoryOverview>>
+  > = ({ signal }) => getCategoryOverview({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCategoryOverview>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCategoryOverviewQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCategoryOverview>>
+>;
+export type GetCategoryOverviewQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get current and historical unit-price summaries for every category
+ */
+
+export function useGetCategoryOverview<
+  TData = Awaited<ReturnType<typeof getCategoryOverview>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCategoryOverview>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCategoryOverviewQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

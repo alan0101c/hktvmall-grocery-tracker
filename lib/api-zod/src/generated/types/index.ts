@@ -7,6 +7,7 @@
  */
 
 export * from "./alert";
+export * from "./categoryOverview";
 export * from "./createAlertRequest";
 export * from "./createProductTypeRequest";
 export * from "./errorResponse";

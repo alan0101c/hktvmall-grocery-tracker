@@ -18,6 +18,22 @@ export interface ProductType {
   createdAt: string;
 }
 
+export interface CategoryOverview {
+  productTypeId: number;
+  bigCategory: string;
+  subCategory: string;
+  name: string;
+  /** Lowest current effective unit price among available listings */
+  cheapestPricePerUnit: number | null;
+  /** HKTVmall URL of the listing with the cheapest current unit price */
+  productUrl: string | null;
+  unit: string;
+  /** Lowest effective unit price recorded across all listings in the category */
+  historicalLow: number | null;
+  /** Most recent date on which the historical low was recorded */
+  historicalLowDate: string | null;
+}
+
 export interface CreateProductTypeRequest {
   name: string;
   unitLabel: string;
