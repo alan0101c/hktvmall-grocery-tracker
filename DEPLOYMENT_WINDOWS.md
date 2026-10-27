@@ -8,12 +8,12 @@ This guide covers running and deploying the HKTVMall Grocery Price Tracker on a 
 
 Install the following before you begin.
 
-### 1. Node.js (v20 or later)
-Download and install from https://nodejs.org (LTS version recommended).
+### 1. Node.js 24
+Download and install from https://nodejs.org.
 
 Verify:
 ```powershell
-node --version   # should be v20 or later
+node --version   # should be v24.x
 npm --version
 ```
 
@@ -86,7 +86,7 @@ Push the Drizzle schema to your PostgreSQL database:
 $env:DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/grocery_tracker"
 pnpm --filter @workspace/db run push
 ```
-This creates all required tables (`products`, `price_history`, `alerts`, `scheduler_settings`).
+This creates all required tables (`products`, `price_history`, `alerts`, `product_types`, `scheduler_settings`).
 
 ---
 
@@ -153,7 +153,7 @@ This compiles the frontend to `artifacts/grocery-tracker/dist/public/` and bundl
 $env:NODE_ENV="production"
 $env:DATABASE_URL="postgresql://..."
 $env:PORT="8080"
-node artifacts/api-server/dist/index.js
+node artifacts/api-server/dist/index.cjs
 ```
 
 ### 3. Serve the frontend
