@@ -17,6 +17,8 @@ tags:
     description: Price alert management
   - name: scheduler
     description: Scheduler configuration and status
+  - name: promotions
+    description: Human-reviewed promotion tags and price-adjustment rules
 paths:
   /healthz:
     get:
@@ -292,6 +294,60 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
 
+  /promotions:
+    get:
+      operationId: getPromotions
+      tags: [promotions]
+      summary: List discovered promotion tags and their reviewed rules
+      description: Synchronizes labels from current products. Pending and rejected tags do not affect prices; suggestions require human approval.
+      responses:
+        "200":
+          description: Promotion rules with affected current products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PromotionRule"
+
+  /promotions/{id}:
+    patch:
+      operationId: updatePromotion
+      tags: [promotions]
+      summary: Review or edit a promotion rule
+      description: Approved rules immediately affect current product prices and alerts. Existing history keeps its frozen promotion snapshot. Approved rules require a percent from 0 to 100 exclusive; conditional rules also require a minimum quantity of at least 2 and a visible assumption.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePromotionRequest"
+      responses:
+        "200":
+          description: Updated promotion rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PromotionRule"
+        "400":
+          description: Invalid promotion rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Promotion rule not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /alerts:
     get:
       operationId: getAlerts
@@ -373,7 +429,7 @@ paths:
     put:
       operationId: updateScheduler
       tags: [scheduler]
-      summary: Update scheduler interval
+      summary: Update automatic tracking settings
       requestBody:
         required: true
         content:
@@ -413,6 +469,144 @@ components:
           format: date-time
       required: [id, name, unitLabel, createdAt]
 
+    PromotionSuggestion:
+      type: object
+      properties:
+        discountPercent:
+          type: number
+          nullable: true
+        application:
+          type: string
+          enum: [automatic, conditional, not_applicable]
+        minimumQuantity:
+          type: integer
+          nullable: true
+        assumption:
+          type: string
+          nullable: true
+      required: [discountPercent, application, minimumQuantity, assumption]
+
+    AppliedPromotion:
+      type: object
+      properties:
+        ruleId:
+          type: integer
+          description: Reviewed rule id, or 0 for a legacy snapshot without a rule reference
+        label:
+          type: string
+        discountPercent:
+          type: number
+        application:
+          type: string
+          enum: [automatic, conditional]
+        minimumQuantity:
+          type: integer
+          nullable: true
+        assumption:
+          type: string
+          nullable: true
+          description: Condition the user must satisfy for this calculated price
+      required: [ruleId, label, discountPercent, application, minimumQuantity, assumption]
+
+    PromotionRule:
+      type: object
+      properties:
+        id:
+          type: integer
+        label:
+          type: string
+        normalizedLabel:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        discountPercent:
+          type: number
+          nullable: true
+        application:
+          type: string
+          enum: [automatic, conditional, not_applicable]
+        minimumQuantity:
+          type: integer
+          nullable: true
+        assumption:
+          type: string
+          nullable: true
+        suggestion:
+          $ref: "#/components/schemas/PromotionSuggestion"
+        affectedProductCount:
+          type: integer
+        affectedProducts:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+              productUrl:
+                type: string
+                nullable: true
+            required: [id, name, productUrl]
+        firstSeenAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - label
+        - normalizedLabel
+        - status
+        - discountPercent
+        - application
+        - minimumQuantity
+        - assumption
+        - suggestion
+        - affectedProductCount
+        - affectedProducts
+        - firstSeenAt
+        - lastSeenAt
+        - reviewedAt
+        - createdAt
+        - updatedAt
+
+    UpdatePromotionRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        discountPercent:
+          type: number
+          nullable: true
+          exclusiveMinimum: 0
+          exclusiveMaximum: 100
+        application:
+          type: string
+          enum: [automatic, conditional, not_applicable]
+        minimumQuantity:
+          type: integer
+          nullable: true
+          minimum: 2
+        assumption:
+          type: string
+          nullable: true
+          maxLength: 500
+      required: [status, discountPercent, application, minimumQuantity, assumption]
+
     CategoryOverview:
       type: object
       properties:
@@ -432,6 +626,11 @@ components:
           type: string
           nullable: true
           description: HKTVmall URL of the listing with the cheapest current unit price
+        cheapestPromotion:
+          allOf:
+            - $ref: "#/components/schemas/AppliedPromotion"
+          nullable: true
+          description: Reviewed promotion behind the current cheapest unit price
         unit:
           type: string
         historicalLow:
@@ -443,6 +642,11 @@ components:
           format: date-time
           nullable: true
           description: Most recent date on which the historical low was recorded
+        historicalLowPromotion:
+          allOf:
+            - $ref: "#/components/schemas/AppliedPromotion"
+          nullable: true
+          description: Promotion frozen on the historical-low snapshot
       required:
         - productTypeId
         - bigCategory
@@ -450,9 +654,11 @@ components:
         - name
         - cheapestPricePerUnit
         - productUrl
+        - cheapestPromotion
         - unit
         - historicalLow
         - historicalLowDate
+        - historicalLowPromotion
 
     CreateProductTypeRequest:
       type: object
@@ -511,21 +717,20 @@ components:
         adjustedPrice:
           type: number
           nullable: true
-          description: >-
-            Effective price after the product's own extra-off campaign tag
-            (extraDiscountPercent). Equals currentPrice when the product has no tag.
+          description: Effective price after the currently approved product promotion, if any
+        appliedPromotion:
+          allOf:
+            - $ref: "#/components/schemas/AppliedPromotion"
+          nullable: true
+          description: Approved promotion and any conditional assumption behind adjustedPrice
         extraDiscountPercent:
           type: number
           nullable: true
-          description: >-
-            Per-product extra-off rate parsed from the product's own HKTVmall
-            campaign price tag (15 = 「今日85折」, 5 = 「今日95折」); drives adjustedPrice.
-            Null when the product has no tag, is not campaign-eligible, or has
-            not been re-scraped since this field was introduced.
+          description: Legacy compatibility field mirroring appliedPromotion.discountPercent
         extraDiscountLabel:
           type: string
           nullable: true
-          description: Raw tag text the rate was parsed from, e.g. 「今日85折$99自取/$699送貨」
+          description: Legacy compatibility field mirroring appliedPromotion.label
         originalPrice:
           type: number
         plusPrice:
@@ -616,6 +821,10 @@ components:
           type: integer
         price:
           type: number
+          description: Raw listed price at recording time
+        adjustedPrice:
+          type: number
+          description: Effective price using the promotion frozen on this record
         originalPrice:
           type: number
         plusPrice:
@@ -627,16 +836,19 @@ components:
           items:
             type: string
           description: All promotion texts at time of recording (always present, may be empty)
+        appliedPromotion:
+          allOf:
+            - $ref: "#/components/schemas/AppliedPromotion"
+          nullable: true
+          description: Promotion and condition frozen at recording time; never resolved from current rules
         extraDiscountPercent:
           type: number
           nullable: true
-          description: >-
-            Per-product extra-off campaign rate frozen at recording time
-            (15 = 「今日85折」, 5 = 「今日95折」; null = no tag on the page then).
+          description: Legacy compatibility field mirroring the frozen promotion percent
         extraDiscountLabel:
           type: string
           nullable: true
-          description: Raw tag text at time of recording
+          description: Legacy compatibility field mirroring the frozen promotion label
         inStock:
           type: boolean
           description: Whether the product was in stock at time of recording
@@ -681,7 +893,12 @@ components:
         adjustedPrice:
           type: number
           nullable: true
-          description: Effective price after the product's own extra-off campaign tag (equals currentPrice when no tag)
+          description: Effective price after the currently approved product promotion, if any
+        appliedPromotion:
+          allOf:
+            - $ref: "#/components/schemas/AppliedPromotion"
+          nullable: true
+          description: Approved promotion and any conditional assumption behind adjustedPrice
         isTriggered:
           type: boolean
           description: Whether the adjusted price is at or below the target price
@@ -708,7 +925,12 @@ components:
         adjustedPrice:
           type: number
           nullable: true
-          description: Effective price after the product's own extra-off campaign tag (equals currentPrice when no tag)
+          description: Effective price after the currently approved product promotion, if any
+        appliedPromotion:
+          allOf:
+            - $ref: "#/components/schemas/AppliedPromotion"
+          nullable: true
+          description: Approved promotion and any conditional assumption behind adjustedPrice
         extraDiscountPercent:
           type: number
           nullable: true
@@ -794,6 +1016,11 @@ components:
           type: boolean
         intervalHours:
           type: integer
+        requestDelayMs:
+          type: integer
+          minimum: 0
+          default: 3000
+          description: Minimum spacing in milliseconds between automatic product-page request start times.
         lastRun:
           type: string
           format: date-time
@@ -804,7 +1031,7 @@ components:
           nullable: true
         totalRuns:
           type: integer
-      required: [enabled, intervalHours, totalRuns]
+      required: [enabled, intervalHours, requestDelayMs, totalRuns]
 
     UpdateSchedulerRequest:
       type: object
@@ -814,7 +1041,12 @@ components:
         intervalHours:
           type: integer
           description: How often to check prices (1, 3, 6, 12, 24)
-      required: [enabled, intervalHours]
+        requestDelayMs:
+          type: integer
+          minimum: 0
+          default: 3000
+          description: Minimum spacing in milliseconds between automatic product-page request start times. Use 0 to disable throttling.
+      required: [enabled, intervalHours, requestDelayMs]
 
     CreateAlertRequest:
       type: object

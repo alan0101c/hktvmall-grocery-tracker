@@ -2,6 +2,8 @@ import { db } from "@workspace/db";
 import { productsTable, priceHistoryTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { scrapeProductByUrl, ProductUnavailableError } from "./scraper.js";
+import { createRequestThrottle } from "./requestThrottle.js";
+import { promotionSnapshot, resolveScrapedPromotion } from "./promotionService.js";
 
 export interface RefreshResult {
   refreshed: number;
@@ -51,8 +53,8 @@ export async function refreshProduct(productId: number): Promise<{ success: bool
     const priceChange = newPrice - oldPrice;
 
     const promotionTexts = scraped.promotionTexts.length > 0 ? scraped.promotionTexts : null;
-    const extraDiscountPercent = scraped.extraDiscount ? String(scraped.extraDiscount.percent) : null;
-    const extraDiscountLabel = scraped.extraDiscount?.label ?? null;
+    const appliedPromotion = await resolveScrapedPromotion(scraped.promotionTexts);
+    const snapshot = promotionSnapshot(appliedPromotion);
 
     await db
       .update(productsTable)
@@ -64,8 +66,7 @@ export async function refreshProduct(productId: number): Promise<{ success: bool
         originalPrice: scraped.originalPrice?.toString() ?? null,
         plusPrice: scraped.plusPrice?.toString() ?? null,
         promotionTexts,
-        extraDiscountPercent,
-        extraDiscountLabel,
+        ...snapshot,
         imageUrl: scraped.imageUrl ?? product.imageUrl,
         inStock: scraped.inStock,
         nameZh: scraped.nameZh ?? product.nameZh,
@@ -84,8 +85,7 @@ export async function refreshProduct(productId: number): Promise<{ success: bool
       originalPrice: scraped.originalPrice?.toString() ?? null,
       plusPrice: scraped.plusPrice?.toString() ?? null,
       promotionTexts,
-      extraDiscountPercent,
-      extraDiscountLabel,
+      ...snapshot,
       inStock: scraped.inStock ?? true,
     });
 
@@ -104,8 +104,9 @@ export async function refreshProduct(productId: number): Promise<{ success: bool
   }
 }
 
-export async function refreshAllProducts(): Promise<RefreshResult> {
+export async function refreshAllProducts(options: { requestDelayMs?: number } = {}): Promise<RefreshResult> {
   const products = await db.select().from(productsTable);
+  const waitForNextRequest = createRequestThrottle(options.requestDelayMs ?? 0);
   let refreshed = 0;
   let failed = 0;
   let unavailable = 0;
@@ -113,6 +114,7 @@ export async function refreshAllProducts(): Promise<RefreshResult> {
   const errors: string[] = [];
 
   for (const product of products) {
+    await waitForNextRequest();
     const result = await refreshProduct(product.id);
     if (result.success) {
       refreshed++;

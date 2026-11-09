@@ -1,11 +1,12 @@
-import cron from "node-cron";
+import cron, { type ScheduledTask } from "node-cron";
 import { db } from "@workspace/db";
 import { schedulerSettingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { refreshAllProducts } from "./refreshService.js";
 
-let currentTask: cron.ScheduledTask | null = null;
+let currentTask: ScheduledTask | null = null;
 let nextRunTime: Date | null = null;
+let isRefreshRunning = false;
 
 function intervalToCron(hours: number): string {
   if (hours < 1) return "0 * * * *"; // every hour
@@ -19,7 +20,7 @@ async function getSettings() {
   if (rows.length === 0) {
     const [created] = await db
       .insert(schedulerSettingsTable)
-      .values({ enabled: true, intervalHours: 6, totalRuns: 0 })
+      .values({ enabled: true, intervalHours: 6, requestDelayMs: 3000, totalRuns: 0 })
       .returning();
     return created;
   }
@@ -43,12 +44,18 @@ function computeNextRun(intervalHours: number): Date {
 }
 
 async function runRefresh() {
+  if (isRefreshRunning) {
+    console.log("[Scheduler] Skipping run because the previous refresh is still in progress");
+    return;
+  }
+
+  isRefreshRunning = true;
   console.log("[Scheduler] Running scheduled price refresh...");
   try {
-    const result = await refreshAllProducts();
+    const settings = await getSettings();
+    const result = await refreshAllProducts({ requestDelayMs: settings.requestDelayMs });
     console.log(`[Scheduler] Done: ${result.refreshed} updated, ${result.failed} failed, ${result.priceDrops} price drops`);
 
-    const settings = await getSettings();
     await db
       .update(schedulerSettingsTable)
       .set({ lastRun: new Date(), totalRuns: settings.totalRuns + 1 })
@@ -57,6 +64,8 @@ async function runRefresh() {
     nextRunTime = computeNextRun(settings.intervalHours);
   } catch (err) {
     console.error("[Scheduler] Error:", err);
+  } finally {
+    isRefreshRunning = false;
   }
 }
 

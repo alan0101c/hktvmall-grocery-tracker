@@ -1,24 +1,40 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { alertsTable, productsTable } from "@workspace/db";
+import { alertsTable, productsTable, type Product } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateAlertBody } from "@workspace/api-zod";
-import { applyDiscount, effectiveDiscountPercent } from "../lib/settings.js";
+import { applyDiscount } from "../lib/settings.js";
+import {
+  productPromotionLabels,
+  resolveApprovedPromotion,
+  type PromotionRuleLike,
+} from "../lib/promotionRules.js";
+import { loadPromotionRules } from "../lib/promotionService.js";
 
 const router: IRouter = Router();
+
+function alertPricing(product: Product, promotionRules: PromotionRuleLike[]) {
+  const currentPrice = parseFloat(product.currentPrice);
+  const appliedPromotion = resolveApprovedPromotion(productPromotionLabels(product), promotionRules);
+  return {
+    currentPrice,
+    appliedPromotion,
+    adjustedPrice: applyDiscount(currentPrice, appliedPromotion?.discountPercent ?? 0),
+  };
+}
 
 router.get("/triggered", async (_req, res) => {
   try {
     const alerts = await db.select().from(alertsTable);
     const products = await db.select().from(productsTable);
     const productMap = new Map(products.map((p) => [p.id, p]));
+    const promotionRules = await loadPromotionRules();
 
     const triggered = alerts
       .map((a) => {
         const product = productMap.get(a.productId);
         if (!product) return null;
-        const currentPrice = parseFloat(product.currentPrice);
-        const adjustedPrice = applyDiscount(currentPrice, effectiveDiscountPercent(product));
+        const { currentPrice, adjustedPrice, appliedPromotion } = alertPricing(product, promotionRules);
         const targetPrice = parseFloat(a.targetPrice);
         if (adjustedPrice > targetPrice) return null;
         return {
@@ -29,9 +45,8 @@ router.get("/triggered", async (_req, res) => {
           imageUrl: product.imageUrl ?? undefined,
           currentPrice,
           adjustedPrice,
-          extraDiscountPercent: product.extraDiscountPercent
-            ? parseFloat(product.extraDiscountPercent)
-            : null,
+          appliedPromotion,
+          extraDiscountPercent: appliedPromotion?.discountPercent ?? null,
           targetPrice,
           savings: Math.round((targetPrice - adjustedPrice) * 100) / 100,
           currency: product.currency,
@@ -50,13 +65,13 @@ router.get("/", async (_req, res) => {
     const alerts = await db.select().from(alertsTable);
     const products = await db.select().from(productsTable);
     const productMap = new Map(products.map((p) => [p.id, p]));
+    const promotionRules = await loadPromotionRules();
 
     const result = alerts.map((a) => {
       const product = productMap.get(a.productId);
-      const currentPrice = product ? parseFloat(product.currentPrice) : 0;
-      const adjustedPrice = product
-        ? applyDiscount(currentPrice, effectiveDiscountPercent(product))
-        : currentPrice;
+      const { currentPrice, adjustedPrice, appliedPromotion } = product
+        ? alertPricing(product, promotionRules)
+        : { currentPrice: 0, adjustedPrice: 0, appliedPromotion: null };
       const targetPrice = parseFloat(a.targetPrice);
       return {
         id: a.id,
@@ -65,6 +80,7 @@ router.get("/", async (_req, res) => {
         targetPrice,
         currentPrice,
         adjustedPrice,
+        appliedPromotion,
         isTriggered: adjustedPrice <= targetPrice,
         createdAt: a.createdAt,
       };
@@ -95,10 +111,9 @@ router.post("/", async (req, res) => {
       .from(productsTable)
       .where(eq(productsTable.id, body.productId));
     const product = products[0];
-    const currentPrice = product ? parseFloat(product.currentPrice) : 0;
-    const adjustedPrice = product
-      ? applyDiscount(currentPrice, effectiveDiscountPercent(product))
-      : currentPrice;
+    const { currentPrice, adjustedPrice, appliedPromotion } = product
+      ? alertPricing(product, await loadPromotionRules())
+      : { currentPrice: 0, adjustedPrice: 0, appliedPromotion: null };
     const targetPrice = parseFloat(alert.targetPrice);
 
     res.status(201).json({
@@ -108,6 +123,7 @@ router.post("/", async (req, res) => {
       targetPrice,
       currentPrice,
       adjustedPrice,
+      appliedPromotion,
       isTriggered: adjustedPrice <= targetPrice,
       createdAt: alert.createdAt,
     });

@@ -1,12 +1,20 @@
 import { useState, useMemo } from "react";
-import { useGetProducts, useRefreshAllProducts, getGetProductsQueryKey, type Product } from "@workspace/api-client-react";
+import {
+  useGetProducts,
+  useRefreshAllProducts,
+  getGetProductsQueryKey,
+  getGetPromotionsQueryKey,
+  getGetCategoryOverviewQueryKey,
+  getGetAlertsQueryKey,
+  getGetTriggeredAlertsQueryKey,
+  type Product,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Search, Filter, Loader2, PackageOpen, RefreshCw, Bell, TrendingDown } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
-import { SchedulerSettings } from "@/components/SchedulerSettings";
 import { AddProductDialog } from "@/components/AddProductDialog";
 import { ProductRow } from "@/components/ProductRow";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
@@ -42,7 +50,7 @@ function groupProducts(products: Product[]): Map<string, Product[]> {  const map
   );
 }
 
-/** The price the user actually pays: listed price with the global discount applied (if any). */
+/** Current price after an approved promotion, if one applies. */
 export function effectivePrice(p: Product): number {
   return p.adjustedPrice ?? p.currentPrice;
 }
@@ -76,7 +84,16 @@ function computeCategoryStats(grouped: Map<string, Product[]>): CategoryStats[] 
         ? discountSamples.reduce((a, b) => a + b, 0) / discountSamples.length
         : null;
 
-    return { name, count: group.length, minPrice, maxPrice, unit: sharedUnit, avgDiscountRatio, hasAlert };
+    return {
+      name,
+      count: group.length,
+      minPrice,
+      maxPrice,
+      unit: sharedUnit,
+      avgDiscountRatio,
+      hasAlert,
+      hasConditionalPrices: group.some((p) => p.appliedPromotion?.application === "conditional"),
+    };
   });
 }
 
@@ -113,6 +130,10 @@ export default function ProductsPage() {
     refreshAllMutation.mutate(undefined, {
       onSuccess: (result) => {
         queryClient.invalidateQueries({ queryKey: getGetProductsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetPromotionsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetCategoryOverviewQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetAlertsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetTriggeredAlertsQueryKey() });
         const parts = [`${result.refreshed} refreshed`];
         if (result.priceDrops > 0) parts.push(`${result.priceDrops} price drop${result.priceDrops > 1 ? "s" : ""}`);
         if (result.failed > 0) parts.push(`${result.failed} failed`);
@@ -163,10 +184,6 @@ export default function ProductsPage() {
             Add Product
           </button>
         </div>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2 mb-8">
-        <SchedulerSettings />
       </div>
 
       {/* Two-column layout: sidebar + content */}

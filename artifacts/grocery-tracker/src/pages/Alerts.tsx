@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { BellRing, Bell, Trash2, ExternalLink, ArrowDownRight, Loader2 } from "lucide-react";
 import { formatHKD, cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import { AppliedPromotionBadge } from "@/components/AppliedPromotionBadge";
 
 export default function AlertsPage() {
   const { data: alerts = [], isLoading: alertsLoading } = useGetAlerts();
@@ -60,6 +61,11 @@ export default function AlertsPage() {
                           <ArrowDownRight className="w-3 h-3" /> Save {formatHKD(alert.savings)}
                         </span>
                       </div>
+                      <AppliedPromotionBadge
+                        promotion={alert.appliedPromotion}
+                        adjustedPrice={alert.adjustedPrice ?? alert.currentPrice}
+                        className="mt-2"
+                      />
                     </div>
                     <div className="flex gap-2 w-full sm:w-auto mt-4 sm:mt-0">
                       {alert.productUrl && (
@@ -109,6 +115,11 @@ export default function AlertsPage() {
                             )}
                           </span>
                         </div>
+                        <AppliedPromotionBadge
+                          promotion={alert.appliedPromotion}
+                          adjustedPrice={alert.adjustedPrice ?? alert.currentPrice}
+                          className="mt-2"
+                        />
                         <p className="text-xs text-muted-foreground mt-2">Created {formatDistanceToNow(new Date(alert.createdAt))} ago</p>
                       </div>
                       

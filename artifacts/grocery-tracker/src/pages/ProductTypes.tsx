@@ -23,6 +23,7 @@ import {
   type TreeNode,
 } from "@/lib/categoryTree";
 import { cn } from "@/lib/utils";
+import { AppliedPromotionBadge } from "@/components/AppliedPromotionBadge";
 
 const COMMON_UNITS = ["ml", "g", "kg", "L", "tablet", "capsule", "sachet", "pack", "sheet", "piece"];
 
@@ -233,6 +234,11 @@ function ProductRow({
             HK${product.pricePerUnit.toFixed(3)}/{type.unitLabel} · {product.packageQuantity}{type.unitLabel}
           </p>
         )}
+        <AppliedPromotionBadge
+          promotion={product.appliedPromotion}
+          adjustedPrice={product.adjustedPrice ?? product.currentPrice}
+          className="mt-1"
+        />
       </div>
       <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
         <input
@@ -504,6 +510,7 @@ function CategoryEditDialog({
                         {preview && (
                           <p className="text-[10px] text-emerald-600 font-semibold">{preview}</p>
                         )}
+                        <AppliedPromotionBadge promotion={p.appliedPromotion} adjustedPrice={price} className="mt-1" />
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         <input

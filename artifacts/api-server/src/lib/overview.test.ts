@@ -20,6 +20,10 @@ function product(overrides: Partial<Product> & Pick<Product, "id" | "productType
     promotionTexts: [],
     extraDiscountPercent: null,
     extraDiscountLabel: null,
+    promotionRuleId: null,
+    discountApplication: null,
+    discountMinimumQuantity: null,
+    discountAssumption: null,
     packageQuantity: "1",
     packageUnit: "sheet",
     itemCount: 100,
@@ -39,6 +43,10 @@ function history(overrides: Partial<PriceHistory> & Pick<PriceHistory, "id" | "p
     promotionTexts: [],
     extraDiscountPercent: null,
     extraDiscountLabel: null,
+    promotionRuleId: null,
+    discountApplication: null,
+    discountMinimumQuantity: null,
+    discountAssumption: null,
     inStock: true,
     recordedAt: new Date("2026-10-01T00:00:00Z"),
     ...overrides,
@@ -124,6 +132,7 @@ test("historical lows use the discount frozen on each history record", () => {
       productId: 11,
       price: "100",
       extraDiscountPercent: "15",
+      extraDiscountLabel: "額外85折",
       recordedAt: new Date("2026-10-01T00:00:00Z"),
     }),
   ];
@@ -131,4 +140,56 @@ test("historical lows use the discount frozen on each history record", () => {
   const [row] = buildCategoryOverview(types, products, records);
   assert.equal(row.cheapestPricePerUnit, 1.2);
   assert.equal(row.historicalLow, 0.85);
+});
+
+test("current rules apply without rewriting frozen conditional history", () => {
+  const types = [type(1, "Baby / Diapers L / Merries")];
+  const products = [product({
+    id: 11,
+    productTypeId: 1,
+    currentPrice: "100",
+    itemCount: 100,
+    promotionTexts: ["買2件95折"],
+    lastUpdated: new Date("2026-10-24T00:00:00Z"),
+  })];
+  const records = [history({
+    id: 101,
+    productId: 11,
+    price: "100",
+    extraDiscountPercent: "35",
+    extraDiscountLabel: "65折換購家居保",
+    discountApplication: "automatic",
+    recordedAt: new Date("2026-10-01T00:00:00Z"),
+  })];
+  const rules = [{
+    id: 2,
+    label: "買2件95折",
+    normalizedLabel: "買2件95折",
+    status: "approved",
+    discountPercent: "5",
+    application: "conditional",
+    minimumQuantity: 2,
+    assumption: "Assumes purchase of at least 2 items",
+  }];
+
+  const [beforeReview] = buildCategoryOverview(types, products, records);
+  assert.equal(beforeReview.cheapestPricePerUnit, 1);
+  assert.equal(beforeReview.cheapestPromotion, null);
+
+  const [afterReview] = buildCategoryOverview(types, products, records, rules);
+  assert.equal(afterReview.cheapestPricePerUnit, 0.95);
+  assert.equal(afterReview.cheapestPromotion?.application, "conditional");
+  assert.equal(afterReview.cheapestPromotion?.assumption, "Assumes purchase of at least 2 items");
+  assert.equal(afterReview.historicalLow, 0.65);
+  assert.equal(afterReview.historicalLowPromotion?.label, "65折換購家居保");
+
+  records[0].extraDiscountPercent = "5";
+  records[0].extraDiscountLabel = "買2件95折";
+  records[0].discountApplication = "conditional";
+  records[0].discountMinimumQuantity = 2;
+  records[0].discountAssumption = "Assumes purchase of at least 2 items";
+  const [frozenConditional] = buildCategoryOverview(types, products, records, []);
+  assert.equal(frozenConditional.historicalLow, 0.95);
+  assert.equal(frozenConditional.historicalLowPromotion?.application, "conditional");
+  assert.equal(frozenConditional.historicalLowPromotion?.assumption, "Assumes purchase of at least 2 items");
 });

@@ -1,14 +1,20 @@
-import { Trash2, Bell, RefreshCw, TrendingDown, TrendingUp, ExternalLink, Tag, Loader2, Crown, Layers, BadgePercent, CircleOff, TriangleAlert } from "lucide-react";
+import { Trash2, Bell, RefreshCw, TrendingDown, TrendingUp, ExternalLink, Tag, Loader2, Crown, Layers, CircleOff, TriangleAlert } from "lucide-react";
 import {
   type Product,
   useDeleteProduct,
   useRefreshProduct,
   getGetProductsQueryKey,
+  getGetProductQueryKey,
+  getGetPromotionsQueryKey,
+  getGetCategoryOverviewQueryKey,
+  getGetAlertsQueryKey,
+  getGetTriggeredAlertsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn, formatHKD } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
+import { AppliedPromotionBadge } from "@/components/AppliedPromotionBadge";
 
 interface ProductRowProps {
   product: Product;
@@ -31,35 +37,39 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
     }
   };
 
+  const invalidateAfterRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: getGetProductsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetProductQueryKey(product.id) });
+    queryClient.invalidateQueries({ queryKey: getGetPromotionsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetCategoryOverviewQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetAlertsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetTriggeredAlertsQueryKey() });
+  };
+
   const handleRefresh = (e: React.MouseEvent) => {
     e.stopPropagation();
     refreshMutation.mutate({ id: product.id }, {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetProductsQueryKey() }),
+      onSuccess: invalidateAfterRefresh,
       onError: (err) => {
         toast({
           title: product.status === "unavailable" ? "Product no longer available" : "Refresh failed",
           description: err.message,
           variant: "destructive",
         });
-        // Even on failure the backend records the outcome — re-fetch so the
-        // failure status / unavailable flag shows up on the row.
-        queryClient.invalidateQueries({ queryKey: getGetProductsQueryKey() });
+        invalidateAfterRefresh();
       },
     });
   };
 
   const displayPrice = product.adjustedPrice ?? product.currentPrice;
-  const extraDiscountPercent = product.extraDiscountPercent ?? null;
-  // Only the product's own campaign tag (額外85/95折) adjusts the price.
-  const activeDiscountPercent = extraDiscountPercent != null && extraDiscountPercent > 0 ? extraDiscountPercent : 0;
-  const hasActiveDiscount = activeDiscountPercent > 0 && displayPrice < product.currentPrice;
+  const hasActiveDiscount = product.appliedPromotion != null && displayPrice < product.currentPrice;
 
   const hasDiscount = product.originalPrice && displayPrice < product.originalPrice;
   const discountPercent = hasDiscount
     ? Math.round(((product.originalPrice! - displayPrice) / product.originalPrice!) * 100)
     : 0;
 
-  const promoList: string[] = product.promotionTexts ?? [];
+  const promoList = (product.promotionTexts ?? []).filter((label) => label !== product.appliedPromotion?.label);
 
   const hasUnitPrice = product.pricePerUnit != null && product.pricePerUnit > 0 && product.packageUnit;
 
@@ -156,18 +166,7 @@ export function ProductRow({ product, onClick, onSetAlert }: ProductRowProps) {
                   {hasDiscount && (
                     <span className="text-[10px] text-muted-foreground/60 line-through">{formatHKD(product.originalPrice)}</span>
                   )}
-                  {hasActiveDiscount && (
-                    <span
-                      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-bold rounded-md"
-                      title={product.extraDiscountLabel ?? undefined}
-                    >
-                      <BadgePercent className="w-3 h-3" />
-                      -{activeDiscountPercent}%
-                      {product.extraDiscountLabel && (
-                        <span className="font-normal">· {product.extraDiscountLabel}</span>
-                      )}
-                    </span>
-                  )}
+                  <AppliedPromotionBadge promotion={product.appliedPromotion} adjustedPrice={displayPrice} />
                 </>
               )}
             </div>

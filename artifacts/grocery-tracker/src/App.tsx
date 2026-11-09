@@ -7,7 +7,9 @@ import { Navbar } from "@/components/layout/Navbar";
 import OverviewPage from "@/pages/Overview";
 import ProductsPage from "@/pages/Products";
 import AlertsPage from "@/pages/Alerts";
+import PromotionsPage from "@/pages/Promotions";
 import ProductTypesPage from "@/pages/ProductTypes";
+import SettingsPage from "@/pages/Settings";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -29,7 +31,9 @@ function Router() {
           <Route path="/" component={OverviewPage} />
           <Route path="/watchlist" component={ProductsPage} />
           <Route path="/alerts" component={AlertsPage} />
+          <Route path="/promotions" component={PromotionsPage} />
           <Route path="/product-types" component={ProductTypesPage} />
+          <Route path="/settings" component={SettingsPage} />
           <Route component={NotFound} />
         </Switch>
       </div>

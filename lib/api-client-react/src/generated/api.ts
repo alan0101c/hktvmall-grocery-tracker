@@ -27,6 +27,7 @@ import type {
   Product,
   ProductDetail,
   ProductType,
+  PromotionRule,
   RefreshResult,
   SchedulerStatus,
   SearchHKTVMallParams,
@@ -36,6 +37,7 @@ import type {
   TriggeredAlert,
   UpdateProductTypeRequest,
   UpdateProductUnitRequest,
+  UpdatePromotionRequest,
   UpdateSchedulerRequest,
 } from "./api.schemas";
 
@@ -1228,6 +1230,170 @@ export const useDeleteProductType = <
 };
 
 /**
+ * Synchronizes labels from current products. Pending and rejected tags do not affect prices; suggestions require human approval.
+ * @summary List discovered promotion tags and their reviewed rules
+ */
+export const getGetPromotionsUrl = () => {
+  return `/api/promotions`;
+};
+
+export const getPromotions = async (
+  options?: RequestInit,
+): Promise<PromotionRule[]> => {
+  return customFetch<PromotionRule[]>(getGetPromotionsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPromotionsQueryKey = () => {
+  return [`/api/promotions`] as const;
+};
+
+export const getGetPromotionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPromotions>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPromotions>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetPromotionsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPromotions>>> = ({
+    signal,
+  }) => getPromotions({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPromotions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPromotionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPromotions>>
+>;
+export type GetPromotionsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List discovered promotion tags and their reviewed rules
+ */
+
+export function useGetPromotions<
+  TData = Awaited<ReturnType<typeof getPromotions>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getPromotions>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPromotionsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Approved rules immediately affect current product prices and alerts. Existing history keeps its frozen promotion snapshot. Approved rules require a percent from 0 to 100 exclusive; conditional rules also require a minimum quantity of at least 2 and a visible assumption.
+ * @summary Review or edit a promotion rule
+ */
+export const getUpdatePromotionUrl = (id: number) => {
+  return `/api/promotions/${id}`;
+};
+
+export const updatePromotion = async (
+  id: number,
+  updatePromotionRequest: UpdatePromotionRequest,
+  options?: RequestInit,
+): Promise<PromotionRule> => {
+  return customFetch<PromotionRule>(getUpdatePromotionUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updatePromotionRequest),
+  });
+};
+
+export const getUpdatePromotionMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePromotion>>,
+    TError,
+    { id: number; data: BodyType<UpdatePromotionRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePromotion>>,
+  TError,
+  { id: number; data: BodyType<UpdatePromotionRequest> },
+  TContext
+> => {
+  const mutationKey = ["updatePromotion"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePromotion>>,
+    { id: number; data: BodyType<UpdatePromotionRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updatePromotion(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePromotionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePromotion>>
+>;
+export type UpdatePromotionMutationBody = BodyType<UpdatePromotionRequest>;
+export type UpdatePromotionMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Review or edit a promotion rule
+ */
+export const useUpdatePromotion = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePromotion>>,
+    TError,
+    { id: number; data: BodyType<UpdatePromotionRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updatePromotion>>,
+  TError,
+  { id: number; data: BodyType<UpdatePromotionRequest> },
+  TContext
+> => {
+  return useMutation(getUpdatePromotionMutationOptions(options));
+};
+
+/**
  * @summary Get all price alerts
  */
 export const getGetAlertsUrl = () => {
@@ -1613,7 +1779,7 @@ export function useGetScheduler<
 }
 
 /**
- * @summary Update scheduler interval
+ * @summary Update automatic tracking settings
  */
 export const getUpdateSchedulerUrl = () => {
   return `/api/scheduler`;
@@ -1676,7 +1842,7 @@ export type UpdateSchedulerMutationBody = BodyType<UpdateSchedulerRequest>;
 export type UpdateSchedulerMutationError = ErrorType<unknown>;
 
 /**
- * @summary Update scheduler interval
+ * @summary Update automatic tracking settings
  */
 export const useUpdateScheduler = <
   TError = ErrorType<unknown>,

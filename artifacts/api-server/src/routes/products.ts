@@ -5,20 +5,28 @@ import { eq, ilike, and, or } from "drizzle-orm";
 import { GetProductsQueryParams, TrackProductBody } from "@workspace/api-zod";
 import { scrapeProductByUrl, searchHKTVMall, ProductUnavailableError } from "../lib/scraper.js";
 import { refreshProduct, refreshAllProducts } from "../lib/refreshService.js";
-import { applyDiscount, effectiveDiscountPercent } from "../lib/settings.js";
+import { applyDiscount } from "../lib/settings.js";
 import { buildCategoryOverview } from "../lib/overview.js";
+import {
+  productPromotionLabels,
+  promotionFromSnapshot,
+  resolveApprovedPromotion,
+  type PromotionRuleLike,
+} from "../lib/promotionRules.js";
+import { loadPromotionRules, promotionSnapshot, resolveScrapedPromotion } from "../lib/promotionService.js";
 
 const router: IRouter = Router();
 
 function buildProductResponse(
   p: typeof productsTable.$inferSelect,
   alertMap: Map<number, number>,
+  promotionRules: PromotionRuleLike[],
   prevPriceMap?: Map<number, number>,
   typesMap?: Map<number, { name: string; unitLabel: string }>
 ) {
   const currentPrice = parseFloat(p.currentPrice);
-  // The only discount is the product's own scraped campaign tag (extra 85/95折).
-  const adjustedPrice = applyDiscount(currentPrice, effectiveDiscountPercent(p));
+  const appliedPromotion = resolveApprovedPromotion(productPromotionLabels(p), promotionRules);
+  const adjustedPrice = applyDiscount(currentPrice, appliedPromotion?.discountPercent ?? 0);
   const alertPrice = alertMap.get(p.id) ?? null;
   const isBelowAlert = alertPrice !== null && adjustedPrice <= alertPrice;
   const prevPrice = prevPriceMap?.get(p.id);
@@ -44,8 +52,9 @@ function buildProductResponse(
     category: p.category ?? undefined,
     currentPrice,
     adjustedPrice,
-    extraDiscountPercent: p.extraDiscountPercent ? parseFloat(p.extraDiscountPercent) : null,
-    extraDiscountLabel: p.extraDiscountLabel ?? null,
+    appliedPromotion,
+    extraDiscountPercent: appliedPromotion?.discountPercent ?? null,
+    extraDiscountLabel: appliedPromotion?.label ?? null,
     originalPrice: p.originalPrice ? parseFloat(p.originalPrice) : undefined,
     plusPrice: p.plusPrice ? parseFloat(p.plusPrice) : null,
     promotionTexts,
@@ -140,12 +149,13 @@ async function resolveUnitForAssignment(
 
 router.get("/overview", async (_req, res) => {
   try {
-    const [types, products, history] = await Promise.all([
+    const [types, products, history, promotionRules] = await Promise.all([
       db.select().from(productTypesTable),
       db.select().from(productsTable),
       db.select().from(priceHistoryTable),
+      loadPromotionRules(),
     ]);
-    res.json(buildCategoryOverview(types, products, history));
+    res.json(buildCategoryOverview(types, products, history, promotionRules));
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
@@ -182,8 +192,8 @@ router.post("/track", async (req, res) => {
       : await db.select().from(productsTable).where(eq(productsTable.productUrl, productUrl));
 
     const scrapedPromotionTexts = scraped?.promotionTexts && scraped.promotionTexts.length > 0 ? scraped.promotionTexts : null;
-    const scrapedExtraDiscountPercent = scraped?.extraDiscount ? String(scraped.extraDiscount.percent) : null;
-    const scrapedExtraDiscountLabel = scraped?.extraDiscount?.label ?? null;
+    const appliedPromotion = await resolveScrapedPromotion(scraped?.promotionTexts ?? []);
+    const scrapedSnapshot = promotionSnapshot(appliedPromotion);
 
     let productId: number;
     if (existing.length > 0) {
@@ -212,8 +222,7 @@ router.post("/track", async (req, res) => {
           originalPrice: scraped?.originalPrice?.toString() ?? null,
           plusPrice: scraped?.plusPrice?.toString() ?? null,
           promotionTexts: scrapedPromotionTexts,
-          extraDiscountPercent: scrapedExtraDiscountPercent,
-          extraDiscountLabel: scrapedExtraDiscountLabel,
+          ...scrapedSnapshot,
           imageUrl: scraped?.imageUrl,
           inStock: scraped?.inStock ?? true,
           lastUpdated: new Date(),
@@ -230,8 +239,7 @@ router.post("/track", async (req, res) => {
         originalPrice: scraped?.originalPrice?.toString() ?? null,
         plusPrice: scraped?.plusPrice?.toString() ?? null,
         promotionTexts: scrapedPromotionTexts,
-        extraDiscountPercent: scrapedExtraDiscountPercent,
-        extraDiscountLabel: scrapedExtraDiscountLabel,
+        ...scrapedSnapshot,
         inStock: scraped?.inStock ?? true,
       });
     } else {
@@ -246,8 +254,7 @@ router.post("/track", async (req, res) => {
           originalPrice: scraped?.originalPrice?.toString(),
           plusPrice: scraped?.plusPrice?.toString() ?? null,
           promotionTexts: scrapedPromotionTexts,
-          extraDiscountPercent: scrapedExtraDiscountPercent,
-          extraDiscountLabel: scrapedExtraDiscountLabel,
+          ...scrapedSnapshot,
           currency: "HKD",
           imageUrl: scraped?.imageUrl,
           productUrl: productUrl,
@@ -267,8 +274,7 @@ router.post("/track", async (req, res) => {
         originalPrice: scraped?.originalPrice?.toString() ?? null,
         plusPrice: scraped?.plusPrice?.toString() ?? null,
         promotionTexts: scrapedPromotionTexts,
-        extraDiscountPercent: scrapedExtraDiscountPercent,
-        extraDiscountLabel: scrapedExtraDiscountLabel,
+        ...scrapedSnapshot,
         inStock: scraped?.inStock ?? true,
       });
     }
@@ -286,7 +292,7 @@ router.post("/track", async (req, res) => {
     const alertMap = new Map(alerts.map((a) => [a.productId, parseFloat(a.targetPrice)]));
     const allTypes = await db.select().from(productTypesTable);
     const typesMap = new Map(allTypes.map((t) => [t.id, { name: t.name, unitLabel: t.unitLabel }]));
-    res.status(201).json(buildProductResponse(products[0], alertMap, undefined, typesMap));
+    res.status(201).json(buildProductResponse(products[0], alertMap, await loadPromotionRules(), undefined, typesMap));
   } catch (err) {
     if (err instanceof ProductUnavailableError) {
       res.status(400).json({ error: "This product is no longer available on HKTVmall." });
@@ -334,6 +340,7 @@ router.get("/", async (req, res) => {
 
     const alerts = await db.select().from(alertsTable);
     const alertMap = new Map(alerts.map((a) => [a.productId, parseFloat(a.targetPrice)]));
+    const promotionRules = await loadPromotionRules();
 
     const prevPriceMap = new Map<number, number>();
     for (const p of products) {
@@ -348,7 +355,7 @@ router.get("/", async (req, res) => {
     }
 
     const result = products
-      .map((p) => buildProductResponse(p, alertMap, prevPriceMap, typesMap))
+      .map((p) => buildProductResponse(p, alertMap, promotionRules, prevPriceMap, typesMap))
       .filter((p) => {
         if (query.belowAlert) return p.isBelowAlert;
         return true;
@@ -383,18 +390,24 @@ router.get("/:id", async (req, res) => {
     const allTypes = await db.select().from(productTypesTable);
     const typesMap = new Map(allTypes.map((t) => [t.id, { name: t.name, unitLabel: t.unitLabel }]));
     res.json({
-      ...buildProductResponse(p, alertMap, undefined, typesMap),
-      priceHistory: history.map((h) => ({
-        id: h.id,
-        price: parseFloat(h.price),
-        originalPrice: h.originalPrice ? parseFloat(h.originalPrice) : undefined,
-        plusPrice: h.plusPrice ? parseFloat(h.plusPrice) : null,
-        promotionTexts: h.promotionTexts ?? [],
-        extraDiscountPercent: h.extraDiscountPercent ? parseFloat(h.extraDiscountPercent) : null,
-        extraDiscountLabel: h.extraDiscountLabel ?? null,
-        inStock: h.inStock,
-        recordedAt: h.recordedAt,
-      })),
+      ...buildProductResponse(p, alertMap, await loadPromotionRules(), undefined, typesMap),
+      priceHistory: history.map((h) => {
+        const appliedPromotion = promotionFromSnapshot(h);
+        const price = parseFloat(h.price);
+        return {
+          id: h.id,
+          price,
+          adjustedPrice: applyDiscount(price, appliedPromotion?.discountPercent ?? 0),
+          originalPrice: h.originalPrice ? parseFloat(h.originalPrice) : undefined,
+          plusPrice: h.plusPrice ? parseFloat(h.plusPrice) : null,
+          promotionTexts: h.promotionTexts ?? [],
+          appliedPromotion,
+          extraDiscountPercent: appliedPromotion?.discountPercent ?? null,
+          extraDiscountLabel: appliedPromotion?.label ?? null,
+          inStock: h.inStock,
+          recordedAt: h.recordedAt,
+        };
+      }),
     });
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -416,7 +429,7 @@ router.post("/:id/refresh", async (req, res) => {
     const alertMap = new Map(alerts.map((a) => [a.productId, parseFloat(a.targetPrice)]));
     const allTypes = await db.select().from(productTypesTable);
     const typesMap = new Map(allTypes.map((t) => [t.id, { name: t.name, unitLabel: t.unitLabel }]));
-    res.json(buildProductResponse(products[0], alertMap, undefined, typesMap));
+    res.json(buildProductResponse(products[0], alertMap, await loadPromotionRules(), undefined, typesMap));
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
@@ -459,7 +472,7 @@ router.put("/:id/unit", async (req, res) => {
     const alertMap = new Map(alerts.map((a) => [a.productId, parseFloat(a.targetPrice)]));
     const allTypes = await db.select().from(productTypesTable);
     const typesMap = new Map(allTypes.map((t) => [t.id, { name: t.name, unitLabel: t.unitLabel }]));
-    res.json(buildProductResponse(products[0], alertMap, undefined, typesMap));
+    res.json(buildProductResponse(products[0], alertMap, await loadPromotionRules(), undefined, typesMap));
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }

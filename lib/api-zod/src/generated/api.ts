@@ -39,20 +39,38 @@ export const GetProductsResponseItem = zod.object({
     .number()
     .nullish()
     .describe(
-      "Effective price after the product's own extra-off campaign tag (extraDiscountPercent). Equals currentPrice when the product has no tag.",
+      "Effective price after the currently approved product promotion, if any",
+    ),
+  appliedPromotion: zod
+    .object({
+      ruleId: zod
+        .number()
+        .describe(
+          "Reviewed rule id, or 0 for a legacy snapshot without a rule reference",
+        ),
+      label: zod.string(),
+      discountPercent: zod.number(),
+      application: zod.enum(["automatic", "conditional"]),
+      minimumQuantity: zod.number().nullable(),
+      assumption: zod
+        .string()
+        .nullable()
+        .describe("Condition the user must satisfy for this calculated price"),
+    })
+    .nullish()
+    .describe(
+      "Approved promotion and any conditional assumption behind adjustedPrice",
     ),
   extraDiscountPercent: zod
     .number()
     .nullish()
     .describe(
-      "Per-product extra-off rate parsed from the product's own HKTVmall campaign price tag (15 = 「今日85折」, 5 = 「今日95折」); drives adjustedPrice. Null when the product has no tag, is not campaign-eligible, or has not been re-scraped since this field was introduced.",
+      "Legacy compatibility field mirroring appliedPromotion.discountPercent",
     ),
   extraDiscountLabel: zod
     .string()
     .nullish()
-    .describe(
-      "Raw tag text the rate was parsed from, e.g. 「今日85折$99自取\/$699送貨」",
-    ),
+    .describe("Legacy compatibility field mirroring appliedPromotion.label"),
   originalPrice: zod.number().optional(),
   plusPrice: zod
     .number()
@@ -141,6 +159,24 @@ export const GetCategoryOverviewResponseItem = zod.object({
     .describe(
       "HKTVmall URL of the listing with the cheapest current unit price",
     ),
+  cheapestPromotion: zod
+    .object({
+      ruleId: zod
+        .number()
+        .describe(
+          "Reviewed rule id, or 0 for a legacy snapshot without a rule reference",
+        ),
+      label: zod.string(),
+      discountPercent: zod.number(),
+      application: zod.enum(["automatic", "conditional"]),
+      minimumQuantity: zod.number().nullable(),
+      assumption: zod
+        .string()
+        .nullable()
+        .describe("Condition the user must satisfy for this calculated price"),
+    })
+    .nullable()
+    .describe("Reviewed promotion behind the current cheapest unit price"),
   unit: zod.string(),
   historicalLow: zod
     .number()
@@ -152,6 +188,24 @@ export const GetCategoryOverviewResponseItem = zod.object({
     .date()
     .nullable()
     .describe("Most recent date on which the historical low was recorded"),
+  historicalLowPromotion: zod
+    .object({
+      ruleId: zod
+        .number()
+        .describe(
+          "Reviewed rule id, or 0 for a legacy snapshot without a rule reference",
+        ),
+      label: zod.string(),
+      discountPercent: zod.number(),
+      application: zod.enum(["automatic", "conditional"]),
+      minimumQuantity: zod.number().nullable(),
+      assumption: zod
+        .string()
+        .nullable()
+        .describe("Condition the user must satisfy for this calculated price"),
+    })
+    .nullable()
+    .describe("Promotion frozen on the historical-low snapshot"),
 });
 export const GetCategoryOverviewResponse = zod.array(
   GetCategoryOverviewResponseItem,
@@ -236,20 +290,40 @@ export const GetProductResponse = zod
       .number()
       .nullish()
       .describe(
-        "Effective price after the product's own extra-off campaign tag (extraDiscountPercent). Equals currentPrice when the product has no tag.",
+        "Effective price after the currently approved product promotion, if any",
+      ),
+    appliedPromotion: zod
+      .object({
+        ruleId: zod
+          .number()
+          .describe(
+            "Reviewed rule id, or 0 for a legacy snapshot without a rule reference",
+          ),
+        label: zod.string(),
+        discountPercent: zod.number(),
+        application: zod.enum(["automatic", "conditional"]),
+        minimumQuantity: zod.number().nullable(),
+        assumption: zod
+          .string()
+          .nullable()
+          .describe(
+            "Condition the user must satisfy for this calculated price",
+          ),
+      })
+      .nullish()
+      .describe(
+        "Approved promotion and any conditional assumption behind adjustedPrice",
       ),
     extraDiscountPercent: zod
       .number()
       .nullish()
       .describe(
-        "Per-product extra-off rate parsed from the product's own HKTVmall campaign price tag (15 = 「今日85折」, 5 = 「今日95折」); drives adjustedPrice. Null when the product has no tag, is not campaign-eligible, or has not been re-scraped since this field was introduced.",
+        "Legacy compatibility field mirroring appliedPromotion.discountPercent",
       ),
     extraDiscountLabel: zod
       .string()
       .nullish()
-      .describe(
-        "Raw tag text the rate was parsed from, e.g. 「今日85折$99自取\/$699送貨」",
-      ),
+      .describe("Legacy compatibility field mirroring appliedPromotion.label"),
     originalPrice: zod.number().optional(),
     plusPrice: zod
       .number()
@@ -323,7 +397,13 @@ export const GetProductResponse = zod
       priceHistory: zod.array(
         zod.object({
           id: zod.number(),
-          price: zod.number(),
+          price: zod.number().describe("Raw listed price at recording time"),
+          adjustedPrice: zod
+            .number()
+            .optional()
+            .describe(
+              "Effective price using the promotion frozen on this record",
+            ),
           originalPrice: zod.number().optional(),
           plusPrice: zod
             .number()
@@ -337,16 +417,40 @@ export const GetProductResponse = zod
             .describe(
               "All promotion texts at time of recording (always present, may be empty)",
             ),
+          appliedPromotion: zod
+            .object({
+              ruleId: zod
+                .number()
+                .describe(
+                  "Reviewed rule id, or 0 for a legacy snapshot without a rule reference",
+                ),
+              label: zod.string(),
+              discountPercent: zod.number(),
+              application: zod.enum(["automatic", "conditional"]),
+              minimumQuantity: zod.number().nullable(),
+              assumption: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Condition the user must satisfy for this calculated price",
+                ),
+            })
+            .nullish()
+            .describe(
+              "Promotion and condition frozen at recording time; never resolved from current rules",
+            ),
           extraDiscountPercent: zod
             .number()
             .nullish()
             .describe(
-              "Per-product extra-off campaign rate frozen at recording time (15 = 「今日85折」, 5 = 「今日95折」; null = no tag on the page then).",
+              "Legacy compatibility field mirroring the frozen promotion percent",
             ),
           extraDiscountLabel: zod
             .string()
             .nullish()
-            .describe("Raw tag text at time of recording"),
+            .describe(
+              "Legacy compatibility field mirroring the frozen promotion label",
+            ),
           inStock: zod
             .boolean()
             .describe("Whether the product was in stock at time of recording"),
@@ -386,20 +490,38 @@ export const RefreshProductResponse = zod.object({
     .number()
     .nullish()
     .describe(
-      "Effective price after the product's own extra-off campaign tag (extraDiscountPercent). Equals currentPrice when the product has no tag.",
+      "Effective price after the currently approved product promotion, if any",
+    ),
+  appliedPromotion: zod
+    .object({
+      ruleId: zod
+        .number()
+        .describe(
+          "Reviewed rule id, or 0 for a legacy snapshot without a rule reference",
+        ),
+      label: zod.string(),
+      discountPercent: zod.number(),
+      application: zod.enum(["automatic", "conditional"]),
+      minimumQuantity: zod.number().nullable(),
+      assumption: zod
+        .string()
+        .nullable()
+        .describe("Condition the user must satisfy for this calculated price"),
+    })
+    .nullish()
+    .describe(
+      "Approved promotion and any conditional assumption behind adjustedPrice",
     ),
   extraDiscountPercent: zod
     .number()
     .nullish()
     .describe(
-      "Per-product extra-off rate parsed from the product's own HKTVmall campaign price tag (15 = 「今日85折」, 5 = 「今日95折」); drives adjustedPrice. Null when the product has no tag, is not campaign-eligible, or has not been re-scraped since this field was introduced.",
+      "Legacy compatibility field mirroring appliedPromotion.discountPercent",
     ),
   extraDiscountLabel: zod
     .string()
     .nullish()
-    .describe(
-      "Raw tag text the rate was parsed from, e.g. 「今日85折$99自取\/$699送貨」",
-    ),
+    .describe("Legacy compatibility field mirroring appliedPromotion.label"),
   originalPrice: zod.number().optional(),
   plusPrice: zod
     .number()
@@ -508,20 +630,38 @@ export const UpdateProductUnitResponse = zod.object({
     .number()
     .nullish()
     .describe(
-      "Effective price after the product's own extra-off campaign tag (extraDiscountPercent). Equals currentPrice when the product has no tag.",
+      "Effective price after the currently approved product promotion, if any",
+    ),
+  appliedPromotion: zod
+    .object({
+      ruleId: zod
+        .number()
+        .describe(
+          "Reviewed rule id, or 0 for a legacy snapshot without a rule reference",
+        ),
+      label: zod.string(),
+      discountPercent: zod.number(),
+      application: zod.enum(["automatic", "conditional"]),
+      minimumQuantity: zod.number().nullable(),
+      assumption: zod
+        .string()
+        .nullable()
+        .describe("Condition the user must satisfy for this calculated price"),
+    })
+    .nullish()
+    .describe(
+      "Approved promotion and any conditional assumption behind adjustedPrice",
     ),
   extraDiscountPercent: zod
     .number()
     .nullish()
     .describe(
-      "Per-product extra-off rate parsed from the product's own HKTVmall campaign price tag (15 = 「今日85折」, 5 = 「今日95折」); drives adjustedPrice. Null when the product has no tag, is not campaign-eligible, or has not been re-scraped since this field was introduced.",
+      "Legacy compatibility field mirroring appliedPromotion.discountPercent",
     ),
   extraDiscountLabel: zod
     .string()
     .nullish()
-    .describe(
-      "Raw tag text the rate was parsed from, e.g. 「今日85折$99自取\/$699送貨」",
-    ),
+    .describe("Legacy compatibility field mirroring appliedPromotion.label"),
   originalPrice: zod.number().optional(),
   plusPrice: zod
     .number()
@@ -667,6 +807,101 @@ export const DeleteProductTypeResponse = zod.object({
 });
 
 /**
+ * Synchronizes labels from current products. Pending and rejected tags do not affect prices; suggestions require human approval.
+ * @summary List discovered promotion tags and their reviewed rules
+ */
+export const GetPromotionsResponseItem = zod.object({
+  id: zod.number(),
+  label: zod.string(),
+  normalizedLabel: zod.string(),
+  status: zod.enum(["pending", "approved", "rejected"]),
+  discountPercent: zod.number().nullable(),
+  application: zod.enum(["automatic", "conditional", "not_applicable"]),
+  minimumQuantity: zod.number().nullable(),
+  assumption: zod.string().nullable(),
+  suggestion: zod.object({
+    discountPercent: zod.number().nullable(),
+    application: zod.enum(["automatic", "conditional", "not_applicable"]),
+    minimumQuantity: zod.number().nullable(),
+    assumption: zod.string().nullable(),
+  }),
+  affectedProductCount: zod.number(),
+  affectedProducts: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      productUrl: zod.string().nullable(),
+    }),
+  ),
+  firstSeenAt: zod.date(),
+  lastSeenAt: zod.date(),
+  reviewedAt: zod.date().nullable(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+export const GetPromotionsResponse = zod.array(GetPromotionsResponseItem);
+
+/**
+ * Approved rules immediately affect current product prices and alerts. Existing history keeps its frozen promotion snapshot. Approved rules require a percent from 0 to 100 exclusive; conditional rules also require a minimum quantity of at least 2 and a visible assumption.
+ * @summary Review or edit a promotion rule
+ */
+export const UpdatePromotionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const updatePromotionBodyDiscountPercentExclusiveMin = 0;
+export const updatePromotionBodyDiscountPercentExclusiveMax = 100;
+
+export const updatePromotionBodyMinimumQuantityMin = 2;
+
+export const updatePromotionBodyAssumptionMax = 500;
+
+export const UpdatePromotionBody = zod.object({
+  status: zod.enum(["pending", "approved", "rejected"]),
+  discountPercent: zod
+    .number()
+    .gt(updatePromotionBodyDiscountPercentExclusiveMin)
+    .lt(updatePromotionBodyDiscountPercentExclusiveMax)
+    .nullable(),
+  application: zod.enum(["automatic", "conditional", "not_applicable"]),
+  minimumQuantity: zod
+    .number()
+    .min(updatePromotionBodyMinimumQuantityMin)
+    .nullable(),
+  assumption: zod.string().max(updatePromotionBodyAssumptionMax).nullable(),
+});
+
+export const UpdatePromotionResponse = zod.object({
+  id: zod.number(),
+  label: zod.string(),
+  normalizedLabel: zod.string(),
+  status: zod.enum(["pending", "approved", "rejected"]),
+  discountPercent: zod.number().nullable(),
+  application: zod.enum(["automatic", "conditional", "not_applicable"]),
+  minimumQuantity: zod.number().nullable(),
+  assumption: zod.string().nullable(),
+  suggestion: zod.object({
+    discountPercent: zod.number().nullable(),
+    application: zod.enum(["automatic", "conditional", "not_applicable"]),
+    minimumQuantity: zod.number().nullable(),
+    assumption: zod.string().nullable(),
+  }),
+  affectedProductCount: zod.number(),
+  affectedProducts: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      productUrl: zod.string().nullable(),
+    }),
+  ),
+  firstSeenAt: zod.date(),
+  lastSeenAt: zod.date(),
+  reviewedAt: zod.date().nullable(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
  * @summary Get all price alerts
  */
 export const GetAlertsResponseItem = zod.object({
@@ -679,7 +914,27 @@ export const GetAlertsResponseItem = zod.object({
     .number()
     .nullish()
     .describe(
-      "Effective price after the product's own extra-off campaign tag (equals currentPrice when no tag)",
+      "Effective price after the currently approved product promotion, if any",
+    ),
+  appliedPromotion: zod
+    .object({
+      ruleId: zod
+        .number()
+        .describe(
+          "Reviewed rule id, or 0 for a legacy snapshot without a rule reference",
+        ),
+      label: zod.string(),
+      discountPercent: zod.number(),
+      application: zod.enum(["automatic", "conditional"]),
+      minimumQuantity: zod.number().nullable(),
+      assumption: zod
+        .string()
+        .nullable()
+        .describe("Condition the user must satisfy for this calculated price"),
+    })
+    .nullish()
+    .describe(
+      "Approved promotion and any conditional assumption behind adjustedPrice",
     ),
   isTriggered: zod
     .boolean()
@@ -722,7 +977,27 @@ export const GetTriggeredAlertsResponseItem = zod.object({
     .number()
     .nullish()
     .describe(
-      "Effective price after the product's own extra-off campaign tag (equals currentPrice when no tag)",
+      "Effective price after the currently approved product promotion, if any",
+    ),
+  appliedPromotion: zod
+    .object({
+      ruleId: zod
+        .number()
+        .describe(
+          "Reviewed rule id, or 0 for a legacy snapshot without a rule reference",
+        ),
+      label: zod.string(),
+      discountPercent: zod.number(),
+      application: zod.enum(["automatic", "conditional"]),
+      minimumQuantity: zod.number().nullable(),
+      assumption: zod
+        .string()
+        .nullable()
+        .describe("Condition the user must satisfy for this calculated price"),
+    })
+    .nullish()
+    .describe(
+      "Approved promotion and any conditional assumption behind adjustedPrice",
     ),
   extraDiscountPercent: zod
     .number()
@@ -745,27 +1020,57 @@ export const GetTriggeredAlertsResponse = zod.array(
 /**
  * @summary Get scheduler status
  */
+export const getSchedulerResponseRequestDelayMsDefault = 3000;
+export const getSchedulerResponseRequestDelayMsMin = 0;
+
 export const GetSchedulerResponse = zod.object({
   enabled: zod.boolean(),
   intervalHours: zod.number(),
+  requestDelayMs: zod
+    .number()
+    .min(getSchedulerResponseRequestDelayMsMin)
+    .default(getSchedulerResponseRequestDelayMsDefault)
+    .describe(
+      "Minimum spacing in milliseconds between automatic product-page request start times.",
+    ),
   lastRun: zod.date().nullish(),
   nextRun: zod.date().nullish(),
   totalRuns: zod.number(),
 });
 
 /**
- * @summary Update scheduler interval
+ * @summary Update automatic tracking settings
  */
+export const updateSchedulerBodyRequestDelayMsDefault = 3000;
+export const updateSchedulerBodyRequestDelayMsMin = 0;
+
 export const UpdateSchedulerBody = zod.object({
   enabled: zod.boolean(),
   intervalHours: zod
     .number()
     .describe("How often to check prices (1, 3, 6, 12, 24)"),
+  requestDelayMs: zod
+    .number()
+    .min(updateSchedulerBodyRequestDelayMsMin)
+    .default(updateSchedulerBodyRequestDelayMsDefault)
+    .describe(
+      "Minimum spacing in milliseconds between automatic product-page request start times. Use 0 to disable throttling.",
+    ),
 });
+
+export const updateSchedulerResponseRequestDelayMsDefault = 3000;
+export const updateSchedulerResponseRequestDelayMsMin = 0;
 
 export const UpdateSchedulerResponse = zod.object({
   enabled: zod.boolean(),
   intervalHours: zod.number(),
+  requestDelayMs: zod
+    .number()
+    .min(updateSchedulerResponseRequestDelayMsMin)
+    .default(updateSchedulerResponseRequestDelayMsDefault)
+    .describe(
+      "Minimum spacing in milliseconds between automatic product-page request start times.",
+    ),
   lastRun: zod.date().nullish(),
   nextRun: zod.date().nullish(),
   totalRuns: zod.number(),

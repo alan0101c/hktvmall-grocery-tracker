@@ -1,6 +1,7 @@
 import { pgTable, serial, text, numeric, boolean, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { promotionRulesTable } from "./promotionRules";
 
 export const productTypesTable = pgTable("product_types", {
   id: serial("id").primaryKey(),
@@ -24,16 +25,13 @@ export const productsTable = pgTable("products", {
   inStock: boolean("in_stock").notNull().default(true),
   plusPrice: numeric("plus_price", { precision: 10, scale: 2 }),
   promotionTexts: jsonb("promotion_texts").$type<string[]>(),
-  /**
-   * Per-product extra-off campaign parsed from the product's own HKTVmall price
-   * tag (div.marketing-label-description): 15 = 「今日85折」, 5 = 「今日95折」.
-   * Null = no tag on the page / not campaign-eligible. Takes precedence over
-   * the app-wide global discount when computing the effective price. On
-   * price_history it is frozen per scrape (campaign tags are day-scoped).
-   */
+  /** Approved promotion captured at the latest successful scrape. Current responses re-resolve rules dynamically. */
   extraDiscountPercent: numeric("extra_discount_percent", { precision: 5, scale: 2 }),
-  /** Raw tag text the rate was parsed from, e.g. 「今日85折$99自取/$699送貨」. */
   extraDiscountLabel: text("extra_discount_label"),
+  promotionRuleId: integer("promotion_rule_id").references(() => promotionRulesTable.id, { onDelete: "set null" }),
+  discountApplication: text("discount_application"),
+  discountMinimumQuantity: integer("discount_minimum_quantity"),
+  discountAssumption: text("discount_assumption"),
   productTypeId: integer("product_type_id").references(() => productTypesTable.id, { onDelete: "set null" }),
   packageQuantity: numeric("package_quantity", { precision: 10, scale: 3 }),
   /**
@@ -63,16 +61,14 @@ export const priceHistoryTable = pgTable("price_history", {
   originalPrice: numeric("original_price", { precision: 10, scale: 2 }),
   plusPrice: numeric("plus_price", { precision: 10, scale: 2 }),
   promotionTexts: jsonb("promotion_texts").$type<string[]>(),
-  /**
-   * Per-product extra-off campaign parsed from the product's own HKTVmall price
-   * tag (div.marketing-label-description): 15 = 「今日85折」, 5 = 「今日95折」.
-   * Null = no tag on the page / not campaign-eligible. Takes precedence over
-   * the app-wide global discount when computing the effective price. On
-   * price_history it is frozen per scrape (campaign tags are day-scoped).
-   */
+  /** Approved promotion rate frozen when this snapshot was recorded. */
   extraDiscountPercent: numeric("extra_discount_percent", { precision: 5, scale: 2 }),
-  /** Raw tag text the rate was parsed from, e.g. 「今日85折$99自取/$699送貨」. */
+  /** Full promotion label frozen when this snapshot was recorded. */
   extraDiscountLabel: text("extra_discount_label"),
+  promotionRuleId: integer("promotion_rule_id").references(() => promotionRulesTable.id, { onDelete: "set null" }),
+  discountApplication: text("discount_application"),
+  discountMinimumQuantity: integer("discount_minimum_quantity"),
+  discountAssumption: text("discount_assumption"),
   inStock: boolean("in_stock").notNull().default(true),
   recordedAt: timestamp("recorded_at").notNull().defaultNow(),
 });

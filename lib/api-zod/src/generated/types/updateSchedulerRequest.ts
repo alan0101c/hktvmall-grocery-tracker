@@ -10,4 +10,9 @@ export interface UpdateSchedulerRequest {
   enabled: boolean;
   /** How often to check prices (1, 3, 6, 12, 24) */
   intervalHours: number;
+  /**
+   * Minimum spacing in milliseconds between automatic product-page request start times. Use 0 to disable throttling.
+   * @minimum 0
+   */
+  requestDelayMs: number;
 }

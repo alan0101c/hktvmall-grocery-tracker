@@ -9,6 +9,11 @@
 export interface SchedulerStatus {
   enabled: boolean;
   intervalHours: number;
+  /**
+   * Minimum spacing in milliseconds between automatic product-page request start times.
+   * @minimum 0
+   */
+  requestDelayMs: number;
   lastRun?: Date | null;
   nextRun?: Date | null;
   totalRuns: number;

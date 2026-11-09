@@ -17,6 +17,7 @@ import {
   type CategoryOverview,
 } from "@workspace/api-client-react";
 import { cn } from "@/lib/utils";
+import { AppliedPromotionBadge } from "@/components/AppliedPromotionBadge";
 
 type SortKey =
   | "bigCategory"
@@ -270,24 +271,26 @@ export default function OverviewPage() {
                         row.name
                       )}
                     </td>
-                    <td className="px-4 py-4 text-right font-bold text-foreground whitespace-nowrap">
-                      {row.cheapestPricePerUnit == null ? "—" : formatPrice(row.cheapestPricePerUnit)}
+                    <td className="px-4 py-4 text-right font-bold text-foreground">
+                      <div className="whitespace-nowrap">{row.cheapestPricePerUnit == null ? "—" : formatPrice(row.cheapestPricePerUnit)}</div>
+                      <AppliedPromotionBadge promotion={row.cheapestPromotion} className="mt-1 text-left" />
                     </td>
                     <td className="px-4 py-4">
                       <span className="inline-block px-2 py-0.5 rounded-md bg-muted font-mono text-xs">{row.unit}</span>
                     </td>
-                    <td className="px-4 py-4 text-right whitespace-nowrap">
+                    <td className="px-4 py-4 text-right">
                       {row.historicalLow == null ? (
                         "—"
                       ) : (
                         <>
-                          <div className="font-semibold">{formatPrice(row.historicalLow)}</div>
+                          <div className="font-semibold whitespace-nowrap">{formatPrice(row.historicalLow)}</div>
                           {row.historicalLowDate && (
-                            <div className="flex items-center justify-end gap-1 text-[11px] text-muted-foreground mt-0.5">
+                            <div className="flex items-center justify-end gap-1 text-[11px] text-muted-foreground mt-0.5 whitespace-nowrap">
                               <Clock3 className="w-3 h-3" />
                               {dateFormatter.format(new Date(row.historicalLowDate))}
                             </div>
                           )}
+                          <AppliedPromotionBadge promotion={row.historicalLowPromotion} className="mt-1 text-left" />
                         </>
                       )}
                     </td>

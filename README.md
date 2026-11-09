@@ -10,7 +10,7 @@ A full-stack TypeScript app for tracking HKTVMall grocery prices, comparing prod
 - Compare products using package quantity and item count.
 - Record price, promotion, discount, and stock snapshots over time.
 - Set one target-price alert per product and view triggered alerts.
-- Apply product-specific campaign discounts parsed from HKTVMall price tags.
+- Review discovered promotion tags in the Promotions tab; only approved rules affect current prices, with conditional assumptions shown beside the price.
 - Keep delisted products and their history, marking them unavailable until a successful refresh makes them active again.
 - Organize product types with slash-separated hierarchical names.
 
@@ -163,6 +163,8 @@ All active routes are under `/api`. The OpenAPI source of truth is [`lib/api-spe
 | GET, POST | `/alerts` | List alerts or replace a product's alert |
 | DELETE | `/alerts/:id` | Delete an alert |
 | GET | `/alerts/triggered` | List alerts whose adjusted price meets the target |
+| GET | `/promotions` | List discovered tags, suggestions, and affected products |
+| PATCH | `/promotions/:id` | Approve, reject, or edit a promotion rule |
 | GET, PUT | `/scheduler` | Read or update scheduled refresh settings |
 
 After changing the OpenAPI contract, regenerate both clients:
@@ -175,24 +177,27 @@ Do not edit files under `lib/api-client-react/src/generated/` or `lib/api-zod/sr
 
 ## Pricing and category rules
 
-- `currentPrice` stores the scraped listed price. `adjustedPrice` applies the product's own scraped extra-discount campaign, when present.
-- The former app-wide global discount and `app_settings` table no longer exist.
+- `currentPrice` stores the scraped listed price. `adjustedPrice` applies one currently approved product-specific promotion, if any.
+- Scraped tags are discovered as pending rules and do not affect prices until approved in the Promotions tab. Rejected tags stay visible without adjusting prices; suggestions are only review aids. The seed data rejects the insurance offers `65折換購家居保` and `64折買AXA旅遊保`, and approves `買2件95折` as a conditional 5% discount.
+- Conditional prices display their assumption and minimum-quantity total. Multiple approved matches never stack: automatic rules take precedence, followed by higher discount, lower quantity, and normalized-label order.
+- Review changes immediately affect current product prices, unit prices, category ranges, and alerts. Price history and historical lows always use the promotion frozen on each snapshot, so editing a rule never rewrites history. Legacy snapshots without an application type remain automatic.
 - Alerts compare the adjusted price with the target price.
 - Unit price uses `adjustedPrice / itemCount` when both package quantity and item count are present; otherwise it uses `adjustedPrice / packageQuantity`. Missing or invalid quantity metadata produces no unit price.
 - A product type owns the canonical unit, stored trimmed and lowercase. Unit comparison is case-insensitive.
 - Moving a product to a type with a different unit clears its package quantity rather than displaying a potentially incorrect conversion.
 - Changing a product type's unit requires reviewed member listing quantities in the same atomic PATCH transaction.
 - Successful refreshes append price-history snapshots. Unavailable products retain their last known prices and history.
+- The former app-wide global discount and `app_settings` table no longer exist.
 
 `plusPrice` remains in the schema and API for legacy data, but HKTVmall Plus pricing is deprecated and new scrapes do not populate it.
 
 ## Scraping and scheduling
 
-Product pages are rendered with a shared headless Chromium instance. The scraper extracts product details, stock, promotions, and product-specific extra discounts. Search uses Algolia without launching a browser.
+Product pages are rendered with a shared headless Chromium instance. The scraper extracts product details, stock, and raw promotion labels without deciding which labels are valid product discounts. Search uses Algolia without launching a browser.
 
 A failed refresh records `lastRefreshError`. HTTP 404/410, redirects away from the product page, or product-not-found content can mark a product unavailable without deleting it. A later successful scrape restores active status.
 
-The scheduler runs inside the API process using `node-cron`. It creates default settings on first use (enabled, every six hours), persists run metadata in PostgreSQL, and can be configured from the Watchlist page. Running multiple API replicas can therefore trigger duplicate scheduled refreshes.
+The scheduler runs inside the API process using `node-cron`. It creates default settings on first use (enabled, every six hours), persists run metadata in PostgreSQL, and can be configured from the Settings page. Automatic batches wait at least `requestDelayMs` between product-page request start times (3000 ms by default, or about 20 products per minute); scraping time counts toward this spacing, and overlapping cron runs in one process are skipped. Manual Refresh All remains sequential without an added delay. Running multiple API replicas can still trigger duplicate scheduled refreshes.
 
 ## Replit
 

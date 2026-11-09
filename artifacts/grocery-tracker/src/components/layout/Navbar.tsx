@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Leaf, Bell, Package2, Layers, LayoutDashboard } from "lucide-react";
+import { Leaf, Bell, Package2, Layers, LayoutDashboard, BadgePercent, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Navbar() {
@@ -9,7 +9,9 @@ export function Navbar() {
     { href: "/", label: "Overview", icon: LayoutDashboard },
     { href: "/watchlist", label: "Watchlist", icon: Package2 },
     { href: "/alerts", label: "Alerts", icon: Bell },
+    { href: "/promotions", label: "Promotions", icon: BadgePercent },
     { href: "/product-types", label: "Categories", icon: Layers },
+    { href: "/settings", label: "Settings", icon: Settings },
   ];
 
   return (
@@ -32,7 +34,7 @@ export function Navbar() {
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  "flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-2 rounded-lg text-sm font-semibold transition-all duration-200",
+                  "flex items-center gap-2 px-2 py-2 sm:px-4 sm:py-2 rounded-lg text-sm font-semibold transition-all duration-200",
                   isActive
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"

@@ -5,6 +5,7 @@
  * HKTVMall Grocery Price Tracker API
  * OpenAPI spec version: 0.5.0
  */
+import type { AppliedPromotion } from "./appliedPromotion";
 
 export interface CategoryOverview {
   productTypeId: number;
@@ -15,9 +16,13 @@ export interface CategoryOverview {
   cheapestPricePerUnit: number | null;
   /** HKTVmall URL of the listing with the cheapest current unit price */
   productUrl: string | null;
+  /** Reviewed promotion behind the current cheapest unit price */
+  cheapestPromotion: AppliedPromotion | null;
   unit: string;
   /** Lowest effective unit price recorded across all listings in the category */
   historicalLow: number | null;
   /** Most recent date on which the historical low was recorded */
   historicalLowDate: Date | null;
+  /** Promotion frozen on the historical-low snapshot */
+  historicalLowPromotion: AppliedPromotion | null;
 }

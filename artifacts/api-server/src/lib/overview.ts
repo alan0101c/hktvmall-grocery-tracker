@@ -1,5 +1,12 @@
 import type { PriceHistory, Product, ProductType } from "@workspace/db";
-import { applyDiscount, effectiveDiscountPercent } from "./settings.js";
+import { applyDiscount } from "./settings.js";
+import {
+  productPromotionLabels,
+  promotionFromSnapshot,
+  resolveApprovedPromotion,
+  type AppliedPromotion,
+  type PromotionRuleLike,
+} from "./promotionRules.js";
 
 export interface CategoryOverview {
   productTypeId: number;
@@ -8,9 +15,11 @@ export interface CategoryOverview {
   name: string;
   cheapestPricePerUnit: number | null;
   productUrl: string | null;
+  cheapestPromotion: AppliedPromotion | null;
   unit: string;
   historicalLow: number | null;
   historicalLowDate: string | null;
+  historicalLowPromotion: AppliedPromotion | null;
 }
 
 type UnitProduct = Pick<Product, "packageQuantity" | "itemCount">;
@@ -53,6 +62,7 @@ export function buildCategoryOverview(
   types: ProductType[],
   products: Product[],
   history: PriceHistory[],
+  promotionRules: PromotionRuleLike[] = [],
 ): CategoryOverview[] {
   const productsByType = new Map<number, Product[]>();
   for (const product of products) {
@@ -73,24 +83,29 @@ export function buildCategoryOverview(
     const listings = productsByType.get(type.id) ?? [];
     const currentListings = listings
       .filter((product) => product.status === "active" && product.inStock)
-      .map((product) => ({
-        product,
-        price: calculateOverviewUnitPrice(
-          Number(product.currentPrice),
-          effectiveDiscountPercent(product),
+      .map((product) => {
+        const appliedPromotion = resolveApprovedPromotion(productPromotionLabels(product), promotionRules);
+        return {
           product,
-        ),
-      }))
-      .filter((listing): listing is { product: Product; price: number } => listing.price != null);
-    const cheapestListing = currentListings.reduce<{ product: Product; price: number } | null>(
+          appliedPromotion,
+          price: calculateOverviewUnitPrice(
+            Number(product.currentPrice),
+            appliedPromotion?.discountPercent ?? 0,
+            product,
+          ),
+        };
+      })
+      .filter((listing): listing is { product: Product; appliedPromotion: AppliedPromotion | null; price: number } => listing.price != null);
+    const cheapestListing = currentListings.reduce<typeof currentListings[number] | null>(
       (cheapest, listing) => cheapest == null || listing.price < cheapest.price ? listing : cheapest,
       null,
     );
 
     let historicalLow: number | null = null;
     let historicalLowDate: string | null = null;
+    let historicalLowPromotion: AppliedPromotion | null = null;
 
-    const consider = (price: number | null, recordedAt: Date) => {
+    const consider = (price: number | null, recordedAt: Date, appliedPromotion: AppliedPromotion | null) => {
       if (price == null) return;
       const isoDate = recordedAt.toISOString();
       if (
@@ -100,30 +115,35 @@ export function buildCategoryOverview(
       ) {
         historicalLow = price;
         historicalLowDate = isoDate;
+        historicalLowPromotion = appliedPromotion;
       }
     };
 
     for (const listing of listings) {
       for (const record of historyByProduct.get(listing.id) ?? []) {
+        const appliedPromotion = promotionFromSnapshot(record);
         consider(
           calculateOverviewUnitPrice(
             Number(record.price),
-            record.extraDiscountPercent == null ? 0 : Number(record.extraDiscountPercent),
+            appliedPromotion?.discountPercent ?? 0,
             listing,
           ),
           record.recordedAt,
+          appliedPromotion,
         );
       }
 
-      // Tracking normally writes history immediately, but including the current
-      // snapshot also keeps the low accurate if an older listing has no history.
+      // Tracking normally writes history immediately. Use the last-scrape
+      // snapshot for older listings so rule edits never rewrite historical lows.
+      const snapshotPromotion = promotionFromSnapshot(listing);
       consider(
         calculateOverviewUnitPrice(
           Number(listing.currentPrice),
-          effectiveDiscountPercent(listing),
+          snapshotPromotion?.discountPercent ?? 0,
           listing,
         ),
         listing.lastUpdated,
+        snapshotPromotion,
       );
     }
 
@@ -132,9 +152,11 @@ export function buildCategoryOverview(
       ...categoryParts(type.name),
       cheapestPricePerUnit: cheapestListing?.price ?? null,
       productUrl: cheapestListing?.product.productUrl ?? null,
+      cheapestPromotion: cheapestListing?.appliedPromotion ?? null,
       unit: type.unitLabel,
       historicalLow,
       historicalLowDate,
+      historicalLowPromotion,
     };
   });
 }

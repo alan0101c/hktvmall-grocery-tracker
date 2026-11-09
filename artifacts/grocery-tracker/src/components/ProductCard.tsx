@@ -2,6 +2,7 @@ import { Bell, TrendingDown, Image as ImageIcon } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import type { Product } from "@workspace/api-client-react";
+import { AppliedPromotionBadge } from "@/components/AppliedPromotionBadge";
 
 interface ProductCardProps {
   product: Product;
@@ -85,7 +86,7 @@ export function ProductCard({ product, onClick, onSetAlert }: ProductCardProps) 
         <div className="mt-auto">
           <div className="flex items-baseline gap-2 mb-1">
             <span className="text-2xl font-bold text-foreground">
-              {product.currency}{product.currentPrice.toFixed(2)}
+              {product.currency}{(product.adjustedPrice ?? product.currentPrice).toFixed(2)}
             </span>
             {product.originalPrice && product.originalPrice > product.currentPrice && (
               <span className="text-sm text-muted-foreground line-through decoration-destructive/50">
@@ -93,6 +94,10 @@ export function ProductCard({ product, onClick, onSetAlert }: ProductCardProps) 
               </span>
             )}
           </div>
+          <AppliedPromotionBadge
+            promotion={product.appliedPromotion}
+            adjustedPrice={product.adjustedPrice ?? product.currentPrice}
+          />
           
           <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
             <span className="truncate max-w-[60%]">{product.category || "Uncategorized"}</span>

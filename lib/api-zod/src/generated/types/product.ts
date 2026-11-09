@@ -5,6 +5,7 @@
  * HKTVMall Grocery Price Tracker API
  * OpenAPI spec version: 0.5.0
  */
+import type { AppliedPromotion } from "./appliedPromotion";
 import type { ProductStatus } from "./productStatus";
 
 export interface Product {
@@ -14,11 +15,13 @@ export interface Product {
   brand?: string;
   category?: string;
   currentPrice: number;
-  /** Effective price after the product's own extra-off campaign tag (extraDiscountPercent). Equals currentPrice when the product has no tag. */
+  /** Effective price after the currently approved product promotion, if any */
   adjustedPrice?: number | null;
-  /** Per-product extra-off rate parsed from the product's own HKTVmall campaign price tag (15 = 「今日85折」, 5 = 「今日95折」); drives adjustedPrice. Null when the product has no tag, is not campaign-eligible, or has not been re-scraped since this field was introduced. */
+  /** Approved promotion and any conditional assumption behind adjustedPrice */
+  appliedPromotion?: AppliedPromotion | null;
+  /** Legacy compatibility field mirroring appliedPromotion.discountPercent */
   extraDiscountPercent?: number | null;
-  /** Raw tag text the rate was parsed from, e.g. 「今日85折$99自取/$699送貨」 */
+  /** Legacy compatibility field mirroring appliedPromotion.label */
   extraDiscountLabel?: string | null;
   originalPrice?: number;
   /** Deprecated — HKTVmall cancelled the Plus membership. Always null for newly scraped/refreshed products; may still be present on legacy rows. */

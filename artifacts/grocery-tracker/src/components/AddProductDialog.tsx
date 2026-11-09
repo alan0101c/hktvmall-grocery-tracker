@@ -8,11 +8,12 @@ import {
   useSearchHKTVMall, useTrackProduct, useUpdateProductUnit,
   useGetProductTypes, useCreateProductType,
   getGetProductsQueryKey, getGetProductTypesQueryKey, getSearchHKTVMallQueryKey,
-  type Product,
+  getGetPromotionsQueryKey, type Product,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn, formatHKD } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { AppliedPromotionBadge } from "@/components/AppliedPromotionBadge";
 
 interface AddProductDialogProps {
   isOpen: boolean;
@@ -62,6 +63,7 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
 
   const afterTrack = (product: Product, viaSearch: boolean) => {
     queryClient.invalidateQueries({ queryKey: getGetProductsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetPromotionsQueryKey() });
     setJustAdded(product);
     setAddedViaSearch(viaSearch);
     setStep("configure");
@@ -391,9 +393,17 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
             {/* Added product preview */}
             <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-xl">
               <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 space-y-1">
                 <p className="text-sm font-semibold text-foreground truncate">{justAdded.name}</p>
-                <p className="text-xs text-muted-foreground">{formatHKD(justAdded.currentPrice)} · Added to watchlist</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatHKD(justAdded.adjustedPrice ?? justAdded.currentPrice)}
+                  {justAdded.appliedPromotion && ` (listed ${formatHKD(justAdded.currentPrice)})`}
+                  {" · Added to watchlist"}
+                </p>
+                <AppliedPromotionBadge
+                  promotion={justAdded.appliedPromotion}
+                  adjustedPrice={justAdded.adjustedPrice ?? justAdded.currentPrice}
+                />
               </div>
             </div>
 
@@ -553,7 +563,7 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
                   </div>
                   {totalQty && parseFloat(totalQty) > 0 && (
                     <p className="text-xs text-emerald-600 font-medium">
-                      = {formatHKD(justAdded.currentPrice / parseFloat(totalQty))}/{selectedType?.unitLabel || "unit"}
+                      = {formatHKD((justAdded.adjustedPrice ?? justAdded.currentPrice) / parseFloat(totalQty))}/{selectedType?.unitLabel || "unit"}
                     </p>
                   )}
                 </div>
@@ -595,7 +605,7 @@ export function AddProductDialog({ isOpen, onClose }: AddProductDialogProps) {
                   </div>
                   {itemCount && parseInt(itemCount) > 0 && (
                     <p className="text-xs text-emerald-600 font-medium">
-                      = {formatHKD(justAdded.currentPrice / parseInt(itemCount))} per {unitSize && parseFloat(unitSize) > 0 ? `${unitSize}${selectedType?.unitLabel ?? ""}` : "item"}
+                      = {formatHKD((justAdded.adjustedPrice ?? justAdded.currentPrice) / parseInt(itemCount))} per {unitSize && parseFloat(unitSize) > 0 ? `${unitSize}${selectedType?.unitLabel ?? ""}` : "item"}
                     </p>
                   )}
                 </div>

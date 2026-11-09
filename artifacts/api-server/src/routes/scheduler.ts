@@ -12,7 +12,7 @@ async function getOrCreateSettings() {
   if (rows.length === 0) {
     const [created] = await db
       .insert(schedulerSettingsTable)
-      .values({ enabled: true, intervalHours: 6, totalRuns: 0 })
+      .values({ enabled: true, intervalHours: 6, requestDelayMs: 3000, totalRuns: 0 })
       .returning();
     return created;
   }
@@ -23,6 +23,7 @@ function buildSchedulerResponse(settings: Awaited<ReturnType<typeof getOrCreateS
   return {
     enabled: settings.enabled,
     intervalHours: settings.intervalHours,
+    requestDelayMs: settings.requestDelayMs,
     lastRun: settings.lastRun ?? null,
     nextRun: nextRun ?? null,
     totalRuns: settings.totalRuns,
@@ -41,12 +42,25 @@ router.get("/", async (_req, res) => {
 
 router.put("/", async (req, res) => {
   try {
-    const body = UpdateSchedulerBody.parse(req.body);
+    const parsed = UpdateSchedulerBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const body = parsed.data;
+    if (!Number.isInteger(body.requestDelayMs)) {
+      res.status(400).json({ error: "requestDelayMs must be an integer" });
+      return;
+    }
     const settings = await getOrCreateSettings();
 
     await db
       .update(schedulerSettingsTable)
-      .set({ enabled: body.enabled, intervalHours: body.intervalHours })
+      .set({
+        enabled: body.enabled,
+        intervalHours: body.intervalHours,
+        requestDelayMs: body.requestDelayMs,
+      })
       .where(eq(schedulerSettingsTable.id, settings.id));
 
     if (body.enabled) {

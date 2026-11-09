@@ -7,6 +7,8 @@
  */
 
 export * from "./alert";
+export * from "./appliedPromotion";
+export * from "./appliedPromotionApplication";
 export * from "./categoryOverview";
 export * from "./createAlertRequest";
 export * from "./createProductTypeRequest";
@@ -18,6 +20,12 @@ export * from "./product";
 export * from "./productDetail";
 export * from "./productStatus";
 export * from "./productType";
+export * from "./promotionRule";
+export * from "./promotionRuleAffectedProductsItem";
+export * from "./promotionRuleApplication";
+export * from "./promotionRuleStatus";
+export * from "./promotionSuggestion";
+export * from "./promotionSuggestionApplication";
 export * from "./refreshResult";
 export * from "./schedulerStatus";
 export * from "./searchHKTVMallParams";
@@ -28,4 +36,7 @@ export * from "./triggeredAlert";
 export * from "./updateProductTypeRequest";
 export * from "./updateProductTypeRequestListingsItem";
 export * from "./updateProductUnitRequest";
+export * from "./updatePromotionRequest";
+export * from "./updatePromotionRequestApplication";
+export * from "./updatePromotionRequestStatus";
 export * from "./updateSchedulerRequest";

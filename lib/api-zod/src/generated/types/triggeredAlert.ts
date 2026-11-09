@@ -5,6 +5,7 @@
  * HKTVMall Grocery Price Tracker API
  * OpenAPI spec version: 0.5.0
  */
+import type { AppliedPromotion } from "./appliedPromotion";
 
 export interface TriggeredAlert {
   alertId: number;
@@ -13,8 +14,10 @@ export interface TriggeredAlert {
   productUrl?: string;
   imageUrl?: string;
   currentPrice: number;
-  /** Effective price after the product's own extra-off campaign tag (equals currentPrice when no tag) */
+  /** Effective price after the currently approved product promotion, if any */
   adjustedPrice?: number | null;
+  /** Approved promotion and any conditional assumption behind adjustedPrice */
+  appliedPromotion?: AppliedPromotion | null;
   /** The product's own extra-off campaign rate (15 = 「今日85折」, 5 = 「今日95折」) when it triggered the alert; null when no discount applies */
   extraDiscountPercent?: number | null;
   targetPrice: number;

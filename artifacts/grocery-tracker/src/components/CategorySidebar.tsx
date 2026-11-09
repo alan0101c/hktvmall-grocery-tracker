@@ -18,6 +18,7 @@ export interface CategoryStats {
   unit: string | null;
   avgDiscountRatio: number | null;
   hasAlert: boolean;
+  hasConditionalPrices: boolean;
 }
 
 interface CategorySidebarProps {
@@ -38,12 +39,12 @@ function discountColor(ratio: number | null): "green" | "amber" | "red" | "neutr
 
 function priceRangeLabel(stat: CategoryStats): string {
   const fmt = (n: number) => formatHKD(n);
-  if (stat.minPrice === stat.maxPrice) {
-    return stat.unit ? `${fmt(stat.minPrice)}/${stat.unit}` : fmt(stat.minPrice);
-  }
-  return stat.unit
-    ? `${fmt(stat.minPrice)} – ${fmt(stat.maxPrice)}/${stat.unit}`
-    : `${fmt(stat.minPrice)} – ${fmt(stat.maxPrice)}`;
+  const range = stat.minPrice === stat.maxPrice
+    ? stat.unit ? `${fmt(stat.minPrice)}/${stat.unit}` : fmt(stat.minPrice)
+    : stat.unit
+      ? `${fmt(stat.minPrice)} – ${fmt(stat.maxPrice)}/${stat.unit}`
+      : `${fmt(stat.minPrice)} – ${fmt(stat.maxPrice)}`;
+  return stat.hasConditionalPrices ? `${range} · conditional` : range;
 }
 
 function SidebarEntry({

@@ -5,18 +5,24 @@
  * HKTVMall Grocery Price Tracker API
  * OpenAPI spec version: 0.5.0
  */
+import type { AppliedPromotion } from "./appliedPromotion";
 
 export interface PriceRecord {
   id: number;
+  /** Raw listed price at recording time */
   price: number;
+  /** Effective price using the promotion frozen on this record */
+  adjustedPrice?: number;
   originalPrice?: number;
   /** Deprecated — HKTVmall cancelled the Plus membership. Null for records created after the cancellation. */
   plusPrice?: number | null;
   /** All promotion texts at time of recording (always present, may be empty) */
   promotionTexts?: string[];
-  /** Per-product extra-off campaign rate frozen at recording time (15 = 「今日85折」, 5 = 「今日95折」; null = no tag on the page then). */
+  /** Promotion and condition frozen at recording time; never resolved from current rules */
+  appliedPromotion?: AppliedPromotion | null;
+  /** Legacy compatibility field mirroring the frozen promotion percent */
   extraDiscountPercent?: number | null;
-  /** Raw tag text at time of recording */
+  /** Legacy compatibility field mirroring the frozen promotion label */
   extraDiscountLabel?: string | null;
   /** Whether the product was in stock at time of recording */
   inStock: boolean;

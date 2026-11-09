@@ -3,6 +3,7 @@ import { X, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { useGetProduct } from "@workspace/api-client-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { formatHKD } from "@/lib/utils";
+import { AppliedPromotionBadge } from "@/components/AppliedPromotionBadge";
 
 interface ProductDetailModalProps {
   productId: number;
@@ -83,7 +84,7 @@ export function ProductDetailModal({ productId, onClose }: ProductDetailModalPro
 
   const allPrices: number[] = [];
   for (const h of priceHistory) {
-    allPrices.push(h.price);
+    allPrices.push(h.adjustedPrice ?? h.price);
     if (h.plusPrice != null) allPrices.push(h.plusPrice);
   }
   const historicalLow = allPrices.length > 0 ? Math.min(...allPrices) : null;
@@ -145,10 +146,15 @@ export function ProductDetailModal({ productId, onClose }: ProductDetailModalPro
                   {product.plusPrice != null && (
                     <p className="text-xs text-[#00b050] font-medium mt-1">Plus: {formatHKD(product.plusPrice)}</p>
                   )}
-                  {product.extraDiscountPercent != null && product.extraDiscountPercent > 0 && (
-                    <p className="text-xs text-rose-600 font-medium mt-1" title={product.extraDiscountLabel ?? undefined}>
-                      額外 -{product.extraDiscountPercent}% applied{product.extraDiscountLabel ? ` (${product.extraDiscountLabel})` : ""} (listed: {formatHKD(product.currentPrice)})
-                    </p>
+                  {product.appliedPromotion && (
+                    <>
+                      <p className="text-xs text-muted-foreground mt-1">Listed: {formatHKD(product.currentPrice)}</p>
+                      <AppliedPromotionBadge
+                        promotion={product.appliedPromotion}
+                        adjustedPrice={displayCurrentPrice ?? product.currentPrice}
+                        className="mt-2"
+                      />
+                    </>
                   )}
                 </div>
                 <div className="bg-muted/50 p-4 rounded-2xl border border-border/50">
@@ -228,7 +234,7 @@ export function ProductDetailModal({ productId, onClose }: ProductDetailModalPro
                         <Tooltip
                           formatter={(value: number, name: string) => [
                             formatHKD(value),
-                            name === "price" ? "Regular Price" : "Plus Price",
+                            name === "adjustedPrice" ? "Effective Price" : "Plus Price",
                           ]}
                           labelFormatter={(label: string) => formatTooltipDate(label)}
                           contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)" }}
@@ -249,7 +255,7 @@ export function ProductDetailModal({ productId, onClose }: ProductDetailModalPro
                         )}
                         <Line
                           type="monotone"
-                          dataKey="price"
+                          dataKey="adjustedPrice"
                           stroke="hsl(var(--primary))"
                           strokeWidth={3}
                           dot={(props) => <CustomDot key={`dot-price-${props.index}`} {...props} stroke="hsl(var(--primary))" />}

@@ -5,6 +5,7 @@ import { useCreateAlert, useDeleteAlert, getGetProductsQueryKey, getGetAlertsQue
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { formatHKD } from "@/lib/utils";
+import { AppliedPromotionBadge } from "@/components/AppliedPromotionBadge";
 
 interface SetAlertModalProps {
   product: Product | null;
@@ -20,7 +21,8 @@ export function SetAlertModal({ product, onClose }: SetAlertModalProps) {
 
   useEffect(() => {
     if (product) {
-      setTargetPrice(product.alertPrice ? product.alertPrice.toString() : (product.currentPrice * 0.9).toFixed(2));
+      const currentPrice = product.adjustedPrice ?? product.currentPrice;
+      setTargetPrice(product.alertPrice ? product.alertPrice.toString() : (currentPrice * 0.9).toFixed(2));
     }
   }, [product]);
 
@@ -70,9 +72,16 @@ export function SetAlertModal({ product, onClose }: SetAlertModalProps) {
           <div className="w-12 h-12 rounded-lg bg-white border border-border p-1 shrink-0">
             {product.imageUrl && <img src={product.imageUrl} alt="" className="w-full h-full object-contain" />}
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 space-y-1">
             <p className="font-semibold text-sm truncate">{product.name}</p>
-            <p className="text-muted-foreground text-xs mt-0.5">Current: {formatHKD(product.currentPrice)}</p>
+            <p className="text-muted-foreground text-xs mt-0.5">
+              Effective: {formatHKD(product.adjustedPrice ?? product.currentPrice)}
+              {product.appliedPromotion && ` · Listed: ${formatHKD(product.currentPrice)}`}
+            </p>
+            <AppliedPromotionBadge
+              promotion={product.appliedPromotion}
+              adjustedPrice={product.adjustedPrice ?? product.currentPrice}
+            />
           </div>
         </div>
 

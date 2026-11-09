@@ -18,6 +18,116 @@ export interface ProductType {
   createdAt: string;
 }
 
+export type PromotionSuggestionApplication =
+  (typeof PromotionSuggestionApplication)[keyof typeof PromotionSuggestionApplication];
+
+export const PromotionSuggestionApplication = {
+  automatic: "automatic",
+  conditional: "conditional",
+  not_applicable: "not_applicable",
+} as const;
+
+export interface PromotionSuggestion {
+  discountPercent: number | null;
+  application: PromotionSuggestionApplication;
+  minimumQuantity: number | null;
+  assumption: string | null;
+}
+
+export type AppliedPromotionApplication =
+  (typeof AppliedPromotionApplication)[keyof typeof AppliedPromotionApplication];
+
+export const AppliedPromotionApplication = {
+  automatic: "automatic",
+  conditional: "conditional",
+} as const;
+
+export interface AppliedPromotion {
+  /** Reviewed rule id, or 0 for a legacy snapshot without a rule reference */
+  ruleId: number;
+  label: string;
+  discountPercent: number;
+  application: AppliedPromotionApplication;
+  minimumQuantity: number | null;
+  /** Condition the user must satisfy for this calculated price */
+  assumption: string | null;
+}
+
+export type PromotionRuleStatus =
+  (typeof PromotionRuleStatus)[keyof typeof PromotionRuleStatus];
+
+export const PromotionRuleStatus = {
+  pending: "pending",
+  approved: "approved",
+  rejected: "rejected",
+} as const;
+
+export type PromotionRuleApplication =
+  (typeof PromotionRuleApplication)[keyof typeof PromotionRuleApplication];
+
+export const PromotionRuleApplication = {
+  automatic: "automatic",
+  conditional: "conditional",
+  not_applicable: "not_applicable",
+} as const;
+
+export type PromotionRuleAffectedProductsItem = {
+  id: number;
+  name: string;
+  productUrl: string | null;
+};
+
+export interface PromotionRule {
+  id: number;
+  label: string;
+  normalizedLabel: string;
+  status: PromotionRuleStatus;
+  discountPercent: number | null;
+  application: PromotionRuleApplication;
+  minimumQuantity: number | null;
+  assumption: string | null;
+  suggestion: PromotionSuggestion;
+  affectedProductCount: number;
+  affectedProducts: PromotionRuleAffectedProductsItem[];
+  firstSeenAt: string;
+  lastSeenAt: string;
+  reviewedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type UpdatePromotionRequestStatus =
+  (typeof UpdatePromotionRequestStatus)[keyof typeof UpdatePromotionRequestStatus];
+
+export const UpdatePromotionRequestStatus = {
+  pending: "pending",
+  approved: "approved",
+  rejected: "rejected",
+} as const;
+
+export type UpdatePromotionRequestApplication =
+  (typeof UpdatePromotionRequestApplication)[keyof typeof UpdatePromotionRequestApplication];
+
+export const UpdatePromotionRequestApplication = {
+  automatic: "automatic",
+  conditional: "conditional",
+  not_applicable: "not_applicable",
+} as const;
+
+export interface UpdatePromotionRequest {
+  status: UpdatePromotionRequestStatus;
+  /**
+   * @exclusiveMinimum 0
+   * @exclusiveMaximum 100
+   */
+  discountPercent: number | null;
+  application: UpdatePromotionRequestApplication;
+  /** @minimum 2 */
+  minimumQuantity: number | null;
+  /** @maxLength 500 */
+  assumption: string | null;
+}
+
 export interface CategoryOverview {
   productTypeId: number;
   bigCategory: string;
@@ -27,11 +137,15 @@ export interface CategoryOverview {
   cheapestPricePerUnit: number | null;
   /** HKTVmall URL of the listing with the cheapest current unit price */
   productUrl: string | null;
+  /** Reviewed promotion behind the current cheapest unit price */
+  cheapestPromotion: AppliedPromotion | null;
   unit: string;
   /** Lowest effective unit price recorded across all listings in the category */
   historicalLow: number | null;
   /** Most recent date on which the historical low was recorded */
   historicalLowDate: string | null;
+  /** Promotion frozen on the historical-low snapshot */
+  historicalLowPromotion: AppliedPromotion | null;
 }
 
 export interface CreateProductTypeRequest {
@@ -70,11 +184,13 @@ export interface Product {
   brand?: string;
   category?: string;
   currentPrice: number;
-  /** Effective price after the product's own extra-off campaign tag (extraDiscountPercent). Equals currentPrice when the product has no tag. */
+  /** Effective price after the currently approved product promotion, if any */
   adjustedPrice?: number | null;
-  /** Per-product extra-off rate parsed from the product's own HKTVmall campaign price tag (15 = 「今日85折」, 5 = 「今日95折」); drives adjustedPrice. Null when the product has no tag, is not campaign-eligible, or has not been re-scraped since this field was introduced. */
+  /** Approved promotion and any conditional assumption behind adjustedPrice */
+  appliedPromotion?: AppliedPromotion | null;
+  /** Legacy compatibility field mirroring appliedPromotion.discountPercent */
   extraDiscountPercent?: number | null;
-  /** Raw tag text the rate was parsed from, e.g. 「今日85折$99自取/$699送貨」 */
+  /** Legacy compatibility field mirroring appliedPromotion.label */
   extraDiscountLabel?: string | null;
   originalPrice?: number;
   /** Deprecated — HKTVmall cancelled the Plus membership. Always null for newly scraped/refreshed products; may still be present on legacy rows. */
@@ -111,15 +227,20 @@ export interface Product {
 
 export interface PriceRecord {
   id: number;
+  /** Raw listed price at recording time */
   price: number;
+  /** Effective price using the promotion frozen on this record */
+  adjustedPrice?: number;
   originalPrice?: number;
   /** Deprecated — HKTVmall cancelled the Plus membership. Null for records created after the cancellation. */
   plusPrice?: number | null;
   /** All promotion texts at time of recording (always present, may be empty) */
   promotionTexts?: string[];
-  /** Per-product extra-off campaign rate frozen at recording time (15 = 「今日85折」, 5 = 「今日95折」; null = no tag on the page then). */
+  /** Promotion and condition frozen at recording time; never resolved from current rules */
+  appliedPromotion?: AppliedPromotion | null;
+  /** Legacy compatibility field mirroring the frozen promotion percent */
   extraDiscountPercent?: number | null;
-  /** Raw tag text at time of recording */
+  /** Legacy compatibility field mirroring the frozen promotion label */
   extraDiscountLabel?: string | null;
   /** Whether the product was in stock at time of recording */
   inStock: boolean;
@@ -145,8 +266,10 @@ export interface Alert {
   productName: string;
   targetPrice: number;
   currentPrice: number;
-  /** Effective price after the product's own extra-off campaign tag (equals currentPrice when no tag) */
+  /** Effective price after the currently approved product promotion, if any */
   adjustedPrice?: number | null;
+  /** Approved promotion and any conditional assumption behind adjustedPrice */
+  appliedPromotion?: AppliedPromotion | null;
   /** Whether the adjusted price is at or below the target price */
   isTriggered: boolean;
   createdAt: string;
@@ -159,8 +282,10 @@ export interface TriggeredAlert {
   productUrl?: string;
   imageUrl?: string;
   currentPrice: number;
-  /** Effective price after the product's own extra-off campaign tag (equals currentPrice when no tag) */
+  /** Effective price after the currently approved product promotion, if any */
   adjustedPrice?: number | null;
+  /** Approved promotion and any conditional assumption behind adjustedPrice */
+  appliedPromotion?: AppliedPromotion | null;
   /** The product's own extra-off campaign rate (15 = 「今日85折」, 5 = 「今日95折」) when it triggered the alert; null when no discount applies */
   extraDiscountPercent?: number | null;
   targetPrice: number;
@@ -207,6 +332,11 @@ export interface RefreshResult {
 export interface SchedulerStatus {
   enabled: boolean;
   intervalHours: number;
+  /**
+   * Minimum spacing in milliseconds between automatic product-page request start times.
+   * @minimum 0
+   */
+  requestDelayMs: number;
   lastRun?: string | null;
   nextRun?: string | null;
   totalRuns: number;
@@ -216,6 +346,11 @@ export interface UpdateSchedulerRequest {
   enabled: boolean;
   /** How often to check prices (1, 3, 6, 12, 24) */
   intervalHours: number;
+  /**
+   * Minimum spacing in milliseconds between automatic product-page request start times. Use 0 to disable throttling.
+   * @minimum 0
+   */
+  requestDelayMs: number;
 }
 
 export interface CreateAlertRequest {

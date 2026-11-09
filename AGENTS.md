@@ -45,8 +45,10 @@ Never edit `lib/api-client-react/src/generated/` or `lib/api-zod/src/generated/`
 
 Preserve these behaviors when changing pricing or product code:
 
-- Scraped prices and discounts remain raw in PostgreSQL; calculate adjusted prices in responses and comparisons.
-- Only product-specific `extraDiscountPercent` applies. Global discounts and `app_settings` were removed.
+- Scraped prices and promotion labels remain raw in PostgreSQL; calculate adjusted prices in responses and comparisons.
+- Only approved product-specific promotion rules apply. Unknown tags start pending, rejected tags never adjust prices, and suggestions do not automatically approve them. Global discounts and `app_settings` were removed.
+- Conditional rules display their assumption and minimum-quantity total. Multiple matches never stack: automatic rules take precedence, then higher discount, lower quantity, and normalized-label order.
+- Rule edits dynamically change current prices but never rewrite history. History responses and lows use the promotion snapshot frozen at scrape time; legacy snapshots without an application are automatic.
 - Alerts trigger when adjusted price is at or below target.
 - With both package quantity and item count, unit price is adjusted price divided by item count. Otherwise divide by package quantity. Do not invent unit conversions.
 - Product types own canonical lowercase units. Cross-unit assignment quarantines quantity by clearing it.
@@ -61,7 +63,7 @@ Overview calculations live in `artifacts/api-server/src/lib/overview.ts` and hav
 
 The scraper is `artifacts/api-server/src/lib/scraper.ts`. Product pages use a shared Chromium browser; search uses Algolia. Preserve promotion containment deduplication and the deliberate exclusion of rotating cross-sell/carousel labels. Check actual page behavior before changing selectors, and avoid broad live refresh runs when a targeted scrape is sufficient.
 
-The scheduler runs inside each API process. Multiple replicas can duplicate refreshes. Scheduled and manual refreshes share `refreshService.ts` and process products sequentially.
+The scheduler runs inside each API process. Multiple replicas can duplicate refreshes. Scheduled and manual refreshes share `refreshService.ts` and process products sequentially. Automatic runs use the Settings page's `requestDelayMs` value as minimum spacing between product request start times (3000 ms by default); manual Refresh All has no added delay. A process-local guard skips overlapping scheduled batches.
 
 Close Chromium through the existing shutdown path when changing server lifecycle code.
 
